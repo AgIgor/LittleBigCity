@@ -1,9 +1,11 @@
 // Interface em HTML por cima do mapa: barra superior, catálogo, painéis.
 import { fmt } from './actions.js';
 import { N, MONTHS, DAYS_PER_MONTH, TERRAIN_NAME, OBJ_NAME, WATER, MAP_SIZES, WEATHER_NAME, SPEEDS, COST } from './config.js';
-import { CATS, CATALOG, ITEMS, BY_KEY, xpForLevel } from './catalog.js';
+import { CATS, CATALOG, ITEMS, BY_KEY, xpForLevel, UPGRADES } from './catalog.js';
+import { activeMissions, missionProgress } from './missions.js';
 
 const ICONS = {
+  move: '<path d="M12 3v18M3 12h18"/><path d="m9 6 3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/>',
   inspect: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12M11 11.5v-2a1.5 1.5 0 0 1 3 0V12M14 10.5a1.5 1.5 0 0 1 3 0V12M17 11.5a1.5 1.5 0 0 1 3 0V16a5 5 0 0 1-5 5h-2a5 5 0 0 1-4-2l-3.5-4.5a1.5 1.5 0 0 1 2.3-1.9L8 14"/>',
   road: '<path d="M7 21 10 3M17 21 14 3"/><path d="M12 6v2M12 11v2M12 16v2" stroke-width="1.6"/>',
   home: '<path d="M4 11 12 4l8 7"/><path d="M6 10v10h12V10"/><path d="M10 20v-5h4v5"/>',
@@ -13,9 +15,10 @@ const ICONS = {
   special: '<path d="M3 9l9-5 9 5z"/><path d="M5 9v9M9.5 9v9M14.5 9v9M19 9v9"/><path d="M3 20h18"/>',
   demolish: '<path d="M4 20h16"/><path d="M6 20V9h8v11"/><path d="m15 4 5 5M20 4l-5 5"/>',
 };
-const TOOLBAR = [['inspect', 'Mão'], ...CATS.map(c => [c.id, c.name]), ['demolish', 'Demolir']];
+const TOOLBAR = [['inspect', 'Mão'], ['move', 'Mover'], ...CATS.map(c => [c.id, c.name]), ['demolish', 'Demolir']];
 const HINT = {
   inspect: 'Toque nas moedas para coletar. Clique num prédio para ver detalhes. Arraste para mover o mapa.',
+  move: 'Clique numa construção e depois no lugar novo. Mover é grátis (só paga para tirar mato).',
   demolish: `Remove prédios, ruas e árvores. R$ ${COST.demolish} por tile.`,
 };
 // Miniatura de cada item: sprite do próprio item (variante 0)
@@ -49,7 +52,7 @@ export class UI {
       b.title = `${name} (${k + 1})`;
       b.innerHTML = `${svg(id)}<span>${name}</span><kbd>${k + 1}</kbd>`;
       b.onclick = () => {
-        if (id === 'inspect' || id === 'demolish') { this.closeCat(); game.setTool(id); }
+        if (id === 'inspect' || id === 'demolish' || id === 'move') { this.closeCat(); game.setTool(id); }
         else this.openCat(id, true);
       };
       bar.appendChild(b);
@@ -73,7 +76,78 @@ export class UI {
     dn.checked = game.dayNight;
     dn.onchange = () => game.setDayNight(dn.checked);
     $('#infoClose').onclick = () => this.hideInfo();
+    this.setupMissions();
+    $('#upBtn').onclick = () => {
+      const open = !$('#upPanel').classList.contains('open');
+      this.hideInfo();
+      $('#upPanel').classList.toggle('open', open);
+      this.upSig = '';
+      this.renderUpgrades();
+    };
+    $('#upClose').onclick = () => $('#upPanel').classList.remove('open');
+    $('#upList').addEventListener('click', e => {
+      const b = e.target.closest('[data-up]');
+      if (b && !b.disabled) game.act({ tool: 'upgrade', key: b.dataset.up });
+    });
   }
+
+  // ---------- missões (opcionais) ----------
+  setupMissions() {
+    let closed = false;
+    try { closed = localStorage.getItem('littlebigcity-missions') === 'closed'; } catch { /* sem armazenamento */ }
+    $('#missions').classList.toggle('closed', closed);
+    $('#missionsHead').onclick = () => {
+      const c = $('#missions').classList.toggle('closed');
+      try { localStorage.setItem('littlebigcity-missions', c ? 'closed' : 'open'); } catch { /* sem armazenamento */ }
+    };
+    $('#missionList').addEventListener('click', e => {
+      const b = e.target.closest('[data-claim]');
+      if (b) this.game.act({ tool: 'claim', id: +b.dataset.claim });
+    });
+  }
+
+  renderMissions() {
+    const w = this.game.world, list = activeMissions(w);
+    const rows = list.map(ms => {
+      const p = Math.min(ms.n, missionProgress(w, ms)), done = p >= ms.n;
+      return { ms, p, done };
+    });
+    const ready = rows.filter(r => r.done).length;
+    const sig = rows.map(r => `${r.ms.id}:${r.p}`).join(',');
+    $('#missionsBadge').textContent = ready || '';
+    if (sig === this.missionSig) return;
+    this.missionSig = sig;
+    $('#missions').style.display = list.length ? '' : 'none';
+    $('#missionList').innerHTML = rows.map(({ ms, p, done }) => `<li class="${done ? 'done' : ''}">
+      <span>${ms.text}</span>
+      ${done ? `<button data-claim="${ms.id}">Receber R$ ${fmt(ms.money)}</button>`
+        : `<i><em style="width:${(p / ms.n * 100).toFixed(0)}%"></em></i><small>${fmt(p)} / ${fmt(ms.n)} · prêmio R$ ${fmt(ms.money)}</small>`}
+    </li>`).join('');
+  }
+
+  // ---------- melhorias ----------
+  renderUpgrades() {
+    if (!$('#upPanel').classList.contains('open')) return;
+    const w = this.game.world;
+    const sig = `${w.level}:${w.money}:${JSON.stringify(w.upgrades)}`;
+    if (sig === this.upSig) return;
+    this.upSig = sig;
+    $('#upList').innerHTML = UPGRADES.map(up => {
+      const n = w.upgrades[up.key], max = n >= up.cost.length;
+      const pips = up.cost.map((_, k) => `<i class="${k < n ? 'on' : ''}"></i>`).join('');
+      let btn;
+      if (max) btn = '<button disabled>No máximo</button>';
+      else if (w.level < up.level[n]) btn = `<button disabled>🔒 Nível ${up.level[n]}</button>`;
+      else btn = `<button data-up="${up.key}" ${w.money < up.cost[n] ? 'disabled' : ''}>Comprar · R$ ${fmt(up.cost[n])}</button>`;
+      return `<li>
+        <div class="uphead"><b>${up.icon} ${up.name}</b><span class="pips">${pips}</span></div>
+        <small>${n ? `Agora: ${up.info(n)}.` : 'Ainda não comprada.'}${max ? '' : ` Próximo: ${up.info(n + 1)}.`}</small>
+        ${btn}
+      </li>`;
+    }).join('');
+  }
+
+  moveHint(name) { $('#hint').textContent = `Movendo: ${name}. Clique no lugar novo (Esc solta).`; }
 
   // ---------- catálogo ----------
   openCat(cat, toggle) {
@@ -219,7 +293,11 @@ export class UI {
     $('#clock').textContent = `${icon} ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
     $('#clockStat').title = `Hora do dia · ${WEATHER_NAME[w.weather.kind]}`;
     $('#collectN').textContent = s.coins;
+    this.renderMissions();
+    this.renderUpgrades();
     $('#collectBtn').classList.toggle('ready', s.coins > 0);
+    $('#collectBtn').classList.toggle('auto', w.upgrades.auto > 0);
+    $('#collectBtn').title = w.upgrades.auto ? 'Coletar todas as moedas agora (C). O coletor automático também recolhe sozinho' : 'Coletar todas as moedas (C)';
     if (this.infoTile != null) this.renderInfo();
     // dinheiro mudou: atualiza o "pode comprar" do catálogo aberto
     if ($('#catMenu').classList.contains('open') && (w.money !== this.lastMoney || w.level !== this.lastLevel)) {
@@ -248,7 +326,7 @@ export class UI {
     el.innerHTML = n ? `<b>R$ ${fmt(p.cost)}</b>${n > 1 ? ` · ${n} tiles` : ''}${short ? '<br>moedas insuficientes' : ''}` : (p.reason || 'nada a fazer');
   }
 
-  showInfo(i) { this.infoTile = i; this.renderInfo(); $('#info').classList.add('open'); }
+  showInfo(i) { this.infoTile = i; this.renderInfo(); $('#upPanel').classList.remove('open'); $('#info').classList.add('open'); }
   hideInfo() { this.infoTile = null; $('#info').classList.remove('open'); }
 
   renderInfo() {

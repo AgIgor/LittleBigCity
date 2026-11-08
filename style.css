@@ -84,7 +84,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .tool.on { background: rgba(216,184,74,.18); border-color: var(--accent); color: #fff4cc; }
 /* ---------- painel de informação ---------- */
 #info {
-  position: fixed; left: 8px; top: 70px; width: 240px; padding: 12px 14px;
+  position: fixed; right: 8px; top: 70px; width: 240px; padding: 12px 14px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
   display: none;
 }
@@ -122,8 +122,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .level small { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
 .level i { display: block; width: 90px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.1); overflow: hidden; }
 .level em { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #d8b84a, #ffe48a); transition: width .3s; }
-#collectBtn {
-  margin-left: auto; display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 6px;
+#upBtn {
+  margin-left: auto; display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px;
+  border-radius: 8px; background: rgba(255,255,255,.06); border: 1px solid var(--line); font-size: 12px;
+}
+#upBtn:hover { background: rgba(255,255,255,.12); }
+#upBtn svg { width: 17px; height: 17px; fill: none; stroke: #ffe48a; stroke-width: 1.7; stroke-linejoin: round; }
+#collectBtn { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 6px;
   border-radius: 16px; background: rgba(255,255,255,.06); border: 1px solid var(--line); font-weight: 700;
 }
 #collectBtn .coin {
@@ -131,6 +136,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: radial-gradient(circle at 35% 30%, #ffe48a, #d8a020); color: #7a5410; font-size: 13px;
 }
 #collectBtn.ready { background: rgba(242,194,48,.22); border-color: #f2c230; color: #fff2c0; animation: glow 1.2s infinite alternate; }
+#collectBtn.auto::after { content: '🤖'; font-size: 13px; }
 @keyframes glow { to { box-shadow: 0 0 12px rgba(242,194,48,.55); } }
 
 /* ---------- catálogo ---------- */
@@ -160,8 +166,54 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .tool[data-tool="special"] svg { color: #ffb0e0; }
 .tool[data-tool="demolish"] svg { color: var(--bad); }
 
+/* ---------- missões ---------- */
+#missions {
+  position: fixed; left: 8px; top: 70px; width: 236px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+}
+#missionsHead {
+  display: flex; align-items: center; gap: 6px; width: 100%; padding: 8px 12px; border: 0; background: transparent;
+  font-weight: 700; font-size: 13px; text-align: left;
+}
+#missionsHead b { min-width: 18px; padding: 0 5px; border-radius: 9px; background: #f2c230; color: #3a2a08; font-size: 11px; text-align: center; }
+#missionsHead b:empty { display: none; }
+#missionsHead i { margin-left: auto; font-style: normal; color: var(--muted); transition: transform .2s; }
+#missions.closed #missionsHead i { transform: rotate(-90deg); }
+#missions.closed #missionList { display: none; }
+#missionList { list-style: none; margin: 0; padding: 0 10px 8px; }
+#missionList li { display: flex; flex-direction: column; gap: 4px; padding: 7px 2px; border-top: 1px solid var(--line); font-size: 12.5px; }
+#missionList li.done span { color: #ffe48a; }
+#missionList i { display: block; height: 6px; border-radius: 3px; background: rgba(255,255,255,.1); overflow: hidden; }
+#missionList em { display: block; height: 100%; background: linear-gradient(90deg, #6fcf97, #b8f0bc); }
+#missionList small { color: var(--muted); font-size: 11px; }
+#missionList button, #upList button {
+  padding: 6px 10px; border-radius: 6px; border: 0; background: var(--accent); color: #221d10; font-weight: 700; font-size: 12px;
+}
+#missionList button { animation: glow 1.2s infinite alternate; }
+
+/* ---------- melhorias ---------- */
+#upPanel {
+  position: fixed; right: 8px; top: 70px; width: 290px; padding: 12px 14px; display: none;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+}
+#upPanel.open { display: block; }
+#upPanel h3 { margin: 0 0 4px; font-size: 15px; }
+#upPanel .note { margin: 0 0 8px; font-size: 11.5px; color: var(--muted); }
+#upList { list-style: none; margin: 0; padding: 0; }
+#upList li { display: flex; flex-direction: column; gap: 5px; padding: 9px 0; border-top: 1px solid var(--line); }
+#upList .uphead { display: flex; justify-content: space-between; align-items: center; }
+#upList small { color: var(--muted); font-size: 11.5px; }
+#upList button:disabled { background: rgba(255,255,255,.08); color: var(--muted); cursor: default; }
+.pips { display: flex; gap: 3px; }
+.pips i { width: 14px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.12); }
+.pips i.on { background: #f2c230; }
+.tool[data-tool="move"] svg { color: #8fd0ff; }
+
 @media (max-width: 720px) {
   #top { gap: 10px; padding: 6px 10px; }
+  #upBtn span { display: none; }
+  #missions { width: 190px; }
+  #upPanel { left: 8px; right: 8px; width: auto; }
   .brand, .hide-sm { display: none; }
   .stat { min-width: 0; }
   .level i { width: 54px; }

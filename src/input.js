@@ -1,11 +1,11 @@
 // Mouse, toque e teclado.
 // Mouse: botão esquerdo usa a ferramenta, direito/meio arrasta o mapa, roda dá zoom.
 // Toque: um dedo usa a ferramenta (ou arrasta, no modo Inspecionar), dois dedos movem e dão zoom.
-import { plan } from './actions.js';
+import { plan, judgeMove } from './actions.js';
 import { BY_KEY } from './catalog.js';
 
-// 1 mão, 2 a 7 abrem as categorias do catálogo, 8 demolir
-const TOOL_KEYS = { 1: 'inspect', 2: 'cat:road', 3: 'cat:home', 4: 'cat:shop', 5: 'cat:work', 6: 'cat:deco', 7: 'cat:special', 8: 'demolish' };
+// 1 mão, 2 mover, 3 a 8 abrem as categorias do catálogo, 9 demolir
+const TOOL_KEYS = { 1: 'inspect', 2: 'move', 3: 'cat:road', 4: 'cat:home', 5: 'cat:shop', 6: 'cat:work', 7: 'cat:deco', 8: 'cat:special', 9: 'demolish' };
 
 export class Input {
   constructor(canvas, game) {
@@ -112,7 +112,8 @@ export class Input {
     }
     if (this.mode === 'tool') {
       this.mode = null;
-      if (!cancelled) this.game.act({ tool: this.game.tool, item: this.game.item, a: this.a, b: this.b });
+      if (!cancelled && this.game.tool === 'move') this.game.moveClick(this.a);
+      else if (!cancelled) this.game.act({ tool: this.game.tool, item: this.game.item, a: this.a, b: this.b });
       this.game.ui.costTip();
       if (e.pointerType === 'mouse') { this.a = this.b = this.tileAt(e); this.updatePreview(); }
       else this.clearHover();
@@ -140,6 +141,17 @@ export class Input {
     if (tool === 'inspect') {
       this.lastPlan = null;
       this.scene.setPreview([{ i: this.a.y * this.game.world.N + this.a.x, state: 'skip' }].filter(() => this.game.world.inside(this.a.x, this.a.y)));
+      return;
+    }
+    if (tool === 'move') {
+      // sem nada escolhido: realça o que dá para pegar; com algo escolhido: mostra o destino
+      const w = this.game.world, i = this.a.y * w.N + this.a.x, from = this.game.moveFrom;
+      this.lastPlan = null;
+      if (!w.inside(this.a.x, this.a.y)) { this.scene.setPreview(from != null ? [{ i: from, state: 'area' }] : []); return; }
+      if (from == null) { this.scene.setPreview([{ i, state: w.item[i] ? 'ok' : 'skip' }]); return; }
+      const [state, cost, reason] = judgeMove(w, from, i);
+      this.lastPlan = { tiles: [{ i, state }], cost, bad: state === 'bad' ? 1 : 0, reason };
+      this.scene.setPreview([{ i: from, state: 'area' }, { i, state }]);
       return;
     }
     this.lastPlan = plan(this.game.world, tool, this.a, this.b, this.game.item);
@@ -176,7 +188,11 @@ export class Input {
       if (t?.startsWith('cat:')) this.game.ui.openCat(t.slice(4));
       else if (t) this.game.setTool(t);
       else if (k === ' ') { e.preventDefault(); this.game.togglePause(); }
-      else if (k === 'escape') { this.cancelTool(); this.game.setTool('inspect'); this.game.ui.closeCat(); }
+      else if (k === 'escape') {
+        // no Mover, Esc primeiro solta a construção escolhida
+        if (this.game.tool === 'move' && this.game.moveFrom != null) { this.game.moveFrom = null; this.game.ui.setTool('move'); this.refresh(); }
+        else { this.cancelTool(); this.game.setTool('inspect'); this.game.ui.closeCat(); }
+      }
       else if (k === 'c') this.game.collectAll();
       else if (k === '+' || k === '=') this.scene.setCamera(undefined, undefined, this.scene.cam.zoom * 1.2);
       else if (k === '-') this.scene.setCamera(undefined, undefined, this.scene.cam.zoom / 1.2);

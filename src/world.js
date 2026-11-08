@@ -25,7 +25,14 @@ export class World {
     this.weather = { kind: SUN, until: 4 };
     this.center = { x: N >> 1, y: N >> 1 };   // centro da área construível
     this.rngState = (this.seed ^ 0x9e3779b9) >>> 0;
-    this.stats = { pop: 0, jobs: 0, buildings: 0, coins: 0, count: new Array(ITEMS.length).fill(0) };
+    this.upgrades = { auto: 0, fast: 0, income: 0 };   // nível de cada melhoria comprada
+    this.claimed = [];                        // missões cujo prêmio já foi recebido
+    this.counters = { collected: 0, planted: 0, moved: 0 };
+    this.stats = {
+      pop: 0, jobs: 0, buildings: 0, coins: 0, roads: 0, avenues: 0,
+      count: new Array(ITEMS.length).fill(0),   // inclui obras
+      done: new Array(ITEMS.length).fill(0),    // só prontos
+    };
     this.dirty = new Set();     // tiles que o desenho precisa atualizar
     this.changed = new Set();   // tiles que o anfitrião precisa enviar aos outros jogadores
   }
@@ -120,7 +127,19 @@ export class World {
   // Quanto rende uma coleta neste tile
   payout(i) {
     const it = ITEMS[this.item[i]];
-    return it?.income ? Math.round(it.income * (1 + this.boost[i] / 100)) : 0;
+    return it?.income ? Math.round(it.income * (1 + this.boost[i] / 100) * (1 + this.upgrades.income * 0.1)) : 0;
+  }
+
+  // Recolhe a moeda de um tile; devolve o valor (0 se não havia moeda)
+  collectTile(i) {
+    if (!this.coin[i] || this.cons[i]) return 0;
+    const amount = this.payout(i);
+    this.coin[i] = 0;
+    this.timer[i] = ITEMS[this.item[i]].period;
+    this.money += amount;
+    this.counters.collected += amount;
+    this.changed.add(i);
+    return amount;
   }
 
   neighbors4(i) {
@@ -189,9 +208,10 @@ export class World {
   }
 
   recomputeStats() {
-    let pop = 0, jobs = 0, b = 0, coins = 0;
-    const count = new Array(ITEMS.length).fill(0);
+    let pop = 0, jobs = 0, b = 0, coins = 0, roads = 0, avenues = 0;
+    const count = new Array(ITEMS.length).fill(0), done = new Array(ITEMS.length).fill(0);
     for (let i = 0; i < N * N; i++) {
+      if (this.road[i]) { roads++; if (this.road[i] === 2) avenues++; }
       const id = this.item[i];
       if (!id) continue;
       const it = ITEMS[id];
@@ -199,10 +219,11 @@ export class World {
       jobs += it.workers || 0;               // vaga ocupada desde a obra
       if (this.cons[i]) continue;
       b++;
+      done[id]++;
       pop += it.pop || 0;
       if (this.coin[i]) coins++;
     }
-    Object.assign(this.stats, { pop, jobs, buildings: b, coins, count });
+    Object.assign(this.stats, { pop, jobs, buildings: b, coins, roads, avenues, count, done });
   }
   get freeWorkers() { return this.stats.pop - this.stats.jobs; }
 
@@ -211,6 +232,7 @@ export class World {
     const data = {
       v: 2, n: N, seed: this.seed, money: this.money, xp: this.xp, level: this.level, day: this.day,
       clock: this.clock, weather: this.weather, center: this.center, rng: this.rngState,
+      upgrades: this.upgrades, claimed: this.claimed, counters: this.counters,
     };
     for (const k of LAYERS) data[k] = toB64(this[k]);
     return data;
@@ -225,6 +247,9 @@ export class World {
     if (data.clock != null) w.clock = data.clock;
     if (data.weather) w.weather = data.weather;
     if (data.center) w.center = data.center;
+    if (data.upgrades) Object.assign(w.upgrades, data.upgrades);
+    if (Array.isArray(data.claimed)) w.claimed = data.claimed;
+    if (data.counters) Object.assign(w.counters, data.counters);
     w.recomputeAll();
     return w;
   }

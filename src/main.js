@@ -1,6 +1,7 @@
 import { Application } from '../lib/pixi.min.mjs';
 import { N, SPEEDS, DAY_CYCLE_SECONDS, DAYS_PER_MONTH } from './config.js';
-import { CATALOG, levelReward } from './catalog.js';
+import { CATALOG, levelReward, UPGRADES, ITEMS } from './catalog.js';
+import { MISSIONS } from './missions.js';
 import { World } from './world.js';
 import { apply, fmt } from './actions.js';
 import { tickDay } from './sim.js';
@@ -49,6 +50,7 @@ const game = {
 
   setTool(id, item = null) {
     this.tool = id;
+    this.moveFrom = null;
     this.item = id === 'build' ? item : null;
     this.ui.setTool(id, this.item);
     this.input?.refresh();
@@ -71,6 +73,22 @@ const game = {
     this.ui.update();
   },
   collect(i) { this.act({ tool: 'collect', i }); },
+  // Mover: o primeiro clique escolhe a construção, o segundo o novo lugar
+  moveClick({ x, y }) {
+    const w = this.world;
+    if (!w.inside(x, y)) return;
+    const i = y * N + x;
+    if (this.moveFrom == null || this.moveFrom === i) {
+      if (this.moveFrom === i) { this.moveFrom = null; this.ui.setTool('move'); return; }
+      if (!w.item[i]) { this.ui.toast('Clique numa construção para mover', true); return; }
+      this.moveFrom = i;
+      this.ui.moveHint(ITEMS[w.item[i]].name);
+      return;
+    }
+    this.act({ tool: 'move', from: this.moveFrom, a: { x, y } });
+    this.moveFrom = null;
+    this.ui.setTool('move');
+  },
   collectAll() { this.act({ tool: 'collectAll' }); },
   setDayNight(on) {
     this.prefs.dayNight = on;
@@ -87,6 +105,24 @@ const game = {
       case 'built':
         sc.floatText(ev.i, 'Pronto!', 0x8cff96);
         break;
+      case 'moved':
+        sc.bounce(ev.i);
+        break;
+      case 'auto':
+        for (const [i, v] of ev.sample) sc.floatText(i, `+R$ ${fmt(v)}`);
+        this.ui.toast(`🤖 Coletor automático: +R$ ${fmt(ev.total)} de ${ev.n} construç${ev.n > 1 ? 'ões' : 'ão'}`);
+        break;
+      case 'upgrade': {
+        const up = UPGRADES.find(u => u.key === ev.key);
+        this.ui.toast(`${up.icon} ${up.name} nível ${ev.n}: ${up.info(ev.n)}.`, false, 4000);
+        this.ui.renderUpgrades();
+        break;
+      }
+      case 'mission': {
+        const ms = MISSIONS[ev.id];
+        this.ui.toast(`✅ Missão concluída: ${ms.text}. +R$ ${fmt(ms.money)} e ${ms.xp} XP`, false, 4000);
+        break;
+      }
       case 'level': {
         const news = CATALOG.filter(it => it.level === ev.level).map(it => it.name);
         this.ui.toast(`⭐ Nível ${ev.level}! Ganhou R$ ${fmt(levelReward(ev.level))} e a cidade cresceu.${news.length ? ` Novo: ${news.join(', ')}.` : ''}`, false, 6000);

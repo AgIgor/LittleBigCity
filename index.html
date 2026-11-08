@@ -20,6 +20,10 @@
     </div>
     <div class="stat hide-sm" title="Data"><small>Data</small><span id="date">1 Jan · Ano 1</span></div>
     <div class="stat hide-sm" id="clockStat" title="Hora do dia"><small>Hora</small><span id="clock">08:00</span></div>
+    <button id="upBtn" title="Melhorias: coletor automático, obras rápidas, renda extra">
+      <svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8-4.3-4.1 5.9-.9z"/></svg>
+      <span>Melhorias</span>
+    </button>
     <button id="collectBtn" title="Coletar todas as moedas (C)">
       <span class="coin">$</span><span id="collectN">0</span>
     </button>
@@ -61,6 +65,18 @@
       </div>
     </div>
   </header>
+
+  <aside id="missions">
+    <button id="missionsHead" title="Mostrar ou esconder as missões">Missões <b id="missionsBadge"></b><i>▾</i></button>
+    <ul id="missionList"></ul>
+  </aside>
+
+  <aside id="upPanel" class="panel">
+    <button class="close" id="upClose" title="Fechar">✕</button>
+    <h3>Melhorias</h3>
+    <p class="note">Compradas uma vez, valem para sempre e para todos na sala.</p>
+    <ul id="upList"></ul>
+  </aside>
 
   <aside id="info" class="panel">
     <button class="close" id="infoClose" title="Fechar">✕</button>

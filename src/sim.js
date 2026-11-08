@@ -1,7 +1,7 @@
 // Simulação diária: obras, moedas dos prédios e clima.
 // Determinística (usa o Rng salvo no mundo) para o anfitrião do multiplayer.
 import { N, GRASS, DIRT, STORM } from './config.js';
-import { ITEMS, levelReward } from './catalog.js';
+import { ITEMS, levelReward, AUTO_PERIOD } from './catalog.js';
 import { Rng } from './rng.js';
 
 // Próximo clima: tende a continuar parecido; tempestade sempre passa
@@ -63,6 +63,24 @@ export function tickDay(w) {
     if (w.terrain[i] === DIRT && !w.item[i] && !w.road[i] && rng.next() < 0.08) {
       w.terrain[i] = GRASS;
       w.markDirty(i);
+    }
+  }
+
+  // Coletor automático: de tempos em tempos recolhe todas as moedas prontas
+  const period = AUTO_PERIOD[w.upgrades.auto];
+  if (period && w.day % period === 0) {
+    let total = 0, n = 0;
+    const sample = [];
+    for (let i = 0; i < N * N; i++) {
+      const v = w.collectTile(i);
+      if (!v) continue;
+      total += v; n++;
+      if (sample.length < 12) sample.push([i, v]);
+    }
+    if (n) {
+      events.push({ type: 'auto', total, n, sample });
+      gainXp(w, n, events);
+      statsChanged = true;
     }
   }
 

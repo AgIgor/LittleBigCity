@@ -71,6 +71,7 @@ export class Scene {
     app.stage.addChild(this.flash);
     this.flashA = 0;
     this.boltT = 3;
+    this.bounces = new Set();
   }
 
   sprite(key) {
@@ -235,6 +236,8 @@ export class Scene {
       for (const i of w.dirty) this.refreshTile(i);
       w.dirty.clear();
     }
+    for (const i of this.bounces) if (this.objS[i]) this.objS[i].pop = 0;
+    this.bounces.clear();
     this.syncArea();
   }
 
@@ -404,6 +407,10 @@ export class Scene {
     }
     if (this.fx.some(f => f.dead)) this.fx = this.fx.filter(f => !f.dead);
   }
+
+  // Pulinho num objeto (construção que acabou de mudar de lugar)
+  // (o sprite no lugar novo só nasce no próximo sync, então fica anotado)
+  bounce(i) { this.bounces.add(i); }
 
   // Texto subindo sobre um tile ("+R$ 25", "+5 XP")
   floatText(i, text, color = 0xffe066) {

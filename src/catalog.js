@@ -68,3 +68,25 @@ export const areaHalf = (level, n) => Math.min(Math.ceil(n / 2), 9 + level * 3);
 export const levelReward = L => 100 * L;
 // Teto do bônus somado de decoração e especiais
 export const MAX_BOOST = 100;
+
+// Melhorias compradas uma vez por nível; automatizam ou aceleram o jogo.
+// cost[n] é o preço do nível n + 1; level[n] é o nível da cidade exigido.
+export const UPGRADES = [
+  {
+    key: 'auto', name: 'Coletor automático', icon: '🤖',
+    info: n => `Coleta todas as moedas sozinho a cada ${AUTO_PERIOD[n] / 2} s`,
+    cost: [1500, 6000, 20000], level: [2, 5, 9],
+  },
+  {
+    key: 'fast', name: 'Obras rápidas', icon: '🏗',
+    info: n => `Obras ficam prontas ${[25, 50][n - 1] ?? 0}% mais rápido`,
+    cost: [1200, 8000], level: [3, 7],
+  },
+  {
+    key: 'income', name: 'Renda extra', icon: '💰',
+    info: n => `+${n * 10}% em todas as moedas`,
+    cost: [2500, 9000, 30000], level: [4, 8, 12],
+  },
+];
+// Dias entre coletas automáticas, por nível do coletor (índice 0 = sem coletor)
+export const AUTO_PERIOD = [0, 30, 16, 8];

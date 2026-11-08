@@ -17,10 +17,11 @@ Depois de mudar o código, use **Ctrl+F5** para o navegador não usar a versão 
 |---|---|---|
 | Construir | escolha no catálogo e clique (ruas e árvores: arraste) | um dedo |
 | Coletar moedas | clique na moeda ou no prédio | toque |
+| Mover uma construção | ferramenta Mover: clique nela e depois no lugar novo | dois toques |
 | Mover o mapa | botão direito ou do meio, ou arrastar com a mão | dois dedos, ou um dedo com a mão |
 | Zoom | roda do mouse | pinça |
 
-Teclado: `1` mão, `2`–`7` abrem o catálogo (ruas, casas, comércio, indústria, decoração, especiais), `8` demolir, `C` coleta tudo, `Esc` volta para a mão, `WASD`/setas movem, `+`/`-` zoom, `espaço` pausa.
+Teclado: `1` mão, `2` mover, `3`–`8` abrem o catálogo (ruas, casas, comércio, indústria, decoração, especiais), `9` demolir, `C` coleta tudo, `Esc` volta para a mão, `WASD`/setas movem, `+`/`-` zoom, `espaço` pausa.
 
 ## Como jogar
 
@@ -29,6 +30,9 @@ Teclado: `1` mão, `2`–`7` abrem o catálogo (ruas, casas, comércio, indústr
 - Quando um prédio tem moedas prontas, aparece uma moeda em cima dele. Toque nela ou use o botão **Coletar** no topo.
 - Construir e coletar dá **experiência**. Cada nível dá um prêmio em moedas, libera prédios novos no catálogo e aumenta a área da cidade (o contorno dourado).
 - **Decoração** (árvores, canteiros, parquinho, chafariz, ponto de ônibus) e **especiais** (escola, posto, bombeiros, usina, prefeitura, estádio, torre...) aumentam o rendimento dos prédios em volta. Ao escolher um deles, a área do bônus aparece em amarelo.
+- **Mover:** construiu no lugar errado? Use a ferramenta Mover. É grátis e a construção leva junto as moedas e a obra em andamento.
+- **Missões** (quadro à esquerda, pode ser recolhido): objetivos opcionais com prêmio em moedas e experiência. Aparecem três por vez; quando uma fica pronta, clique em Receber.
+- **Melhorias** (botão no topo): **Coletor automático** recolhe todas as moedas sozinho de tempos em tempos (3 níveis), **Obras rápidas** encurta as obras e **Renda extra** aumenta todas as moedas.
 - Não há contas a pagar nem desastres: é só construir.
 - **Dia e noite** e **clima** (sol, nublado, chuva, tempestade) são só visuais. O ciclo de dia e noite pode ser desligado no menu ☰.
 - **Novo mapa** (menu ☰): escolha o tamanho (96, 128 ou 192) e a semente; a mesma semente gera o mesmo mapa.
@@ -51,10 +55,11 @@ index.html, style.css   interface
 lib/pixi.min.mjs        PixiJS 8 (desenho em WebGL)
 lib/peerjs.min.js       PeerJS 1.5 (conexão entre jogadores)
 src/config.js           constantes do jogo (tamanhos, custos, velocidades)
-src/catalog.js          catálogo de prédios, níveis e área da cidade
+src/catalog.js          catálogo de prédios, melhorias, níveis e área da cidade
+src/missions.js         missões opcionais
 src/rng.js              aleatório com semente e ruído
 src/world.js            dados do mapa, geração e salvamento
-src/actions.js          ações do jogador (construir, coletar, demolir)
+src/actions.js          ações do jogador (construir, mover, coletar, demolir, melhorias, missões)
 src/sim.js              simulação diária: obras, moedas, clima
 src/art.js              todos os sprites, desenhados por código
 src/atlas.js            junta os sprites em texturas grandes

@@ -124,7 +124,7 @@ export class Net {
       this.stateT = 0;
       this.broadcast({
         t: 'delta', tiles, money: w.money, xp: w.xp, level: w.level, day: w.day, speed: this.game.speed,
-        clock: w.clock, weather: w.weather, events,
+        clock: w.clock, weather: w.weather, upgrades: w.upgrades, claimed: w.claimed, counters: w.counters, events,
       });
     }
   }
@@ -187,6 +187,9 @@ export class Net {
         w.money = msg.money; w.xp = msg.xp; w.level = msg.level; w.day = msg.day;
         if (msg.clock != null) w.clock = msg.clock;
         if (msg.weather) w.weather = msg.weather;
+        if (msg.upgrades) w.upgrades = msg.upgrades;
+        if (msg.claimed) w.claimed = msg.claimed;
+        if (msg.counters) w.counters = msg.counters;
         for (const ev of msg.events || []) g.onEvent(ev);
         w.changed.clear();
         if (msg.speed !== g.speed) g.setSpeed(msg.speed, true);
