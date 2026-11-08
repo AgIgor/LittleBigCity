@@ -47,6 +47,10 @@ export class UI {
     document.querySelectorAll('[data-speed]').forEach(b => { b.onclick = () => game.setSpeed(+b.dataset.speed); });
     $('#menuBtn').onclick = () => { $('#mp').classList.remove('open'); $('#menu').classList.toggle('open'); };
     this.setupMultiplayer();
+    $('#alerts').addEventListener('click', e => {
+      const b = e.target.closest('[data-kind]');
+      if (b) game.focusProblem(b.dataset.kind);
+    });
     $('#saveBtn').onclick = () => { game.save(); this.toast('Jogo salvo'); $('#menu').classList.remove('open'); };
     const nb = $('#newBtn');
     nb.onclick = () => {
@@ -131,8 +135,8 @@ export class UI {
     }
     if (this.infoTile != null) this.renderInfo();
     const alerts = [];
-    if (s.buildings >= 6 && s.noPower) alerts.push(`<span class="pw">⚡ ${s.noPower} sem energia</span>`);
-    if (s.noWater) alerts.push(`<span class="wt">💧 ${s.noWater} sem água</span>`);
+    if (s.buildings >= 6 && s.noPower) alerts.push(`<button class="pw" data-kind="power" title="Clique para ir até onde falta energia">⚡ ${s.noPower} sem energia</button>`);
+    if (s.noWater) alerts.push(`<button class="wt" data-kind="water" title="Clique para ir até onde falta água">💧 ${s.noWater} sem água</button>`);
     const html = alerts.join('');
     if (html !== this.alertHtml) { this.alertHtml = html; $('#alerts').innerHTML = html; }
     $('#budget').textContent = s.lastIncome || s.lastCost ? `${s.lastIncome - s.lastCost >= 0 ? '+' : '−'} R$ ${fmt(Math.abs(s.lastIncome - s.lastCost))}/mês` : '';

@@ -26,7 +26,7 @@ Teclado: `1`–`9` ferramentas, `WASD`/setas movem, `+`/`-` zoom, `espaço` paus
 - Zonas só crescem a até 2 tiles de uma rua.
 - **R** (residencial) traz moradores, **C** (comercial) e **I** (industrial) dão empregos. As barras R/C/I no topo mostram a demanda.
 - Prédios sobem de nível (casa → sobrado → prédio) quando a cidade passa de 120 e 600 habitantes.
-- Para subir de nível também precisam de serviços: **nível 2 exige energia** (usina, raio de 16 tiles) e **nível 3 exige energia e água** (caixa d'água, raio de 12 tiles). Os alertas no topo mostram quantos prédios estão sem cada serviço.
+- Para subir de nível também precisam de serviços: **nível 2 exige energia** (usina, raio de 16 tiles) e **nível 3 exige energia e água** (caixa d'água, raio de 12 tiles). Prédios sem serviço ganham um ícone ⚡ ou 💧 flutuando. Clicar no alerta do topo leva a câmera até a região com mais prédios sem aquele serviço (cliques seguidos passam para a próxima região), e escolher Usina ou Caixa d'água mostra o alcance das que já existem.
 - Rua sobre a água vira **ponte** (mais cara para construir e manter).
 - Impostos entram todo fim de mês; ruas, pontes e serviços custam manutenção. O saldo do último mês aparece no topo.
 - O jogo salva sozinho no navegador a cada mês.

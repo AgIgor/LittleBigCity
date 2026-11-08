@@ -1,7 +1,7 @@
 // Cena Pixi: camadas de chão, ruas, zonas, objetos (ordenados por profundidade)
 // e a pré-visualização da ferramenta.
-import { Container, Sprite, Text } from '../lib/pixi.min.mjs';
-import { TW, TH, N, CHUNK, WATER, SAND, GRASS, DIRT, TREE, BUSH, ROCK, ZONE_COLOR, ROAD_REACH } from './config.js';
+import { Container, Sprite, Text, Graphics } from '../lib/pixi.min.mjs';
+import { TW, TH, N, CHUNK, WATER, SAND, GRASS, DIRT, TREE, BUSH, ROCK, ZONE_COLOR, ROAD_REACH, SVC_RADIUS } from './config.js';
 import { TREE_VARIANTS, BUSH_VARIANTS, ROCK_VARIANTS, BUILDINGS, CHIMNEYS } from './art.js';
 
 const HW = TW / 2, HH = TH / 2;
@@ -53,6 +53,9 @@ export class Scene {
     this.groundChunks = mkChunks();
     this.roadChunks = mkChunks();
     this.zoneChunks = mkChunks();
+    this.coverage = new Graphics();
+    this.root.addChild(this.coverage);
+    this.coverageKind = 0;
     this.objects = new Container();
     this.objects.sortableChildren = true;
     this.root.addChild(this.objects);
@@ -63,6 +66,9 @@ export class Scene {
     this.root.addChild(this.smokeLayer);
     this.puffs = [];
     this.chimneys = new Map();     // tile -> posições (mundo) do topo das chaminés
+    this.badgeLayer = new Container();
+    this.root.addChild(this.badgeLayer);
+    this.badges = new Map();       // chave 'tile:tipo' -> sprite
     this.cursorLayer = new Container();
     this.root.addChild(this.cursorLayer);
     this.cursorMap = new Map();
@@ -188,6 +194,58 @@ export class Scene {
       if (t >= 1) { p.s.destroy(); p.dead = true; }
     }
     if (this.puffs.some(p => p.dead)) this.puffs = this.puffs.filter(p => !p.dead);
+  }
+
+  // ---------- avisos de serviço ----------
+  // Recria a lista de ícones; chamado de tempos em tempos (é barato)
+  refreshBadges() {
+    const w = this.world, seen = new Set();
+    for (let i = 0; i < N * N; i++) {
+      if (!w.bld[i] || w.cons[i]) continue;
+      const kinds = ['power', 'water'].filter(k => w.lacks(i, k));
+      kinds.forEach((k, n) => {
+        const key = i + ':' + k;
+        seen.add(key);
+        if (this.badges.has(key)) return;
+        const s = this.sprite(k === 'power' ? 'badgePower' : 'badgeWater');
+        const x = i % N, y = (i / N) | 0, [px, py] = tileToWorld(x, y);
+        const lift = [0, 58, 96, 196][w.bld[i]];
+        s.baseX = px + (kinds.length > 1 ? (n ? 16 : -16) : 0);
+        s.baseY = py + HH - lift;
+        s.phase = (x * 7 + y * 13) % 10;
+        s.position.set(s.baseX, s.baseY);
+        this.badgeLayer.addChild(s);
+        this.badges.set(key, s);
+      });
+    }
+    for (const [key, s] of this.badges) if (!seen.has(key)) { s.destroy(); this.badges.delete(key); }
+  }
+
+  animateBadges(time) {
+    // tamanho constante na tela até certo ponto, para dar para ver de longe
+    const sc = Math.min(2.6, Math.max(1, 0.75 / this.cam.zoom));
+    for (const s of this.badges.values()) {
+      s.visible = this.inView(s.baseX, s.baseY);
+      if (!s.visible) continue;
+      s.y = s.baseY - Math.abs(Math.sin(time * 3 + s.phase)) * 6 * sc;
+      s.scale.set(sc);
+    }
+  }
+
+  // Círculos com o alcance das usinas (1) ou caixas d'água (2); 0 esconde
+  showCoverage(kind) {
+    this.coverageKind = kind;
+    const g = this.coverage;
+    g.clear();
+    if (!kind) return;
+    const w = this.world, col = kind === 1 ? 0xffd84a : 0x5ab8ff, r = SVC_RADIUS[kind];
+    for (let i = 0; i < N * N; i++) {
+      if (w.svc[i] !== kind) continue;
+      const [px, py] = tileToWorld(i % N + 0.5, ((i / N) | 0) + 0.5);
+      g.ellipse(px, py, r * HW * Math.SQRT2, r * HH * Math.SQRT2)
+        .fill({ color: col, alpha: 0.13 })
+        .stroke({ color: col, width: 5, alpha: 0.85 });
+    }
   }
 
   refreshAll() { for (let i = 0; i < N * N; i++) this.refreshTile(i); }

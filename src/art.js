@@ -829,6 +829,29 @@ function caixaDaguaServico() {
   });
 }
 
+// Ícone flutuante de serviço faltando (âncora na ponta de baixo)
+function badge(kind) {
+  return mk(40, 48, 20, 46, x => {
+    const col = kind === 'power' ? '#f2c230' : '#3d9be0';
+    ellipse(x, 0, -1, 7, 2.5, 'rgba(0,0,0,.3)');
+    x.beginPath();
+    x.moveTo(0, -4); x.lineTo(-6, -14); x.lineTo(6, -14); x.closePath();
+    x.fillStyle = '#fff'; x.fill();
+    circle(x, 0, -27, 15, '#fff');
+    circle(x, 0, -27, 12.5, col);
+    x.fillStyle = '#fff';
+    if (kind === 'power') {
+      poly(x, [[2, -37], [-6, -25], [-1, -25], [-3, -16], [6, -29], [1, -29]], '#fff');
+    } else {
+      x.beginPath();
+      x.moveTo(0, -38); x.bezierCurveTo(4, -32, 7, -28, 7, -24); x.arc(0, -24, 7, 0, Math.PI); x.bezierCurveTo(-7, -28, -4, -32, 0, -38);
+      x.fill();
+    }
+    x.strokeStyle = 'rgba(0,0,0,.35)'; x.lineWidth = 1;
+    x.beginPath(); x.arc(0, -27, 15, 0, Math.PI * 2); x.stroke();
+  });
+}
+
 function smokePuff() {
   return mk(48, 48, 24, 24, x => {
     const g = x.createRadialGradient(0, 0, 2, 0, 0, 22);
@@ -930,6 +953,8 @@ export function allSprites() {
   list.svc1 = usina;
   list.svc2 = caixaDaguaServico;
   list.smoke = smokePuff;
+  list.badgePower = () => badge('power');
+  list.badgeWater = () => badge('water');
   CAR_COLORS.forEach((col, k) => { for (let d = 0; d < 4; d++) list[`car${k}_${d}`] = () => vehicle(col, d); });
   for (let d = 0; d < 4; d++) list['bus_' + d] = () => vehicle('#d9a92a', d, true);
   for (let k = 0; k < PED_VARIANTS; k++) for (let f = 0; f < 2; f++) list[`ped${k}_${f}`] = () => person(k, f);

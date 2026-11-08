@@ -26,6 +26,7 @@ const game = {
     if (!TOOLS[id]) return;
     this.tool = id;
     this.ui.setTool(id);
+    this.updateCoverage();
     this.input?.refresh();
   },
   // fromNet: a mudança veio do anfitrião. Um convidado só pede, quem decide é o anfitrião.
@@ -44,6 +45,40 @@ const game = {
     if (r.cost) this.ui.toast(`− R$ ${fmt(r.cost)}`);
     this.ui.update();
   },
+  // Círculos de alcance: aparecem com a ferramenta do serviço escolhida ou
+  // por alguns segundos depois de clicar num alerta
+  updateCoverage() {
+    const kind = this.tool === 'power' ? 1 : this.tool === 'water' ? 2 : this.coverageUntil > performance.now() ? this.coverageFlash : 0;
+    const sig = kind + ':' + this.world.stats.services.join(',');
+    if (sig !== this.coverageSig) { this.coverageSig = sig; this.scene.showCoverage(kind); }
+  },
+
+  // Leva a câmera até a região com mais prédios sem o serviço; cliques
+  // seguidos passam para a próxima região
+  focusProblem(kind) {
+    const w = this.world, C = 10, cells = new Map();
+    for (let i = 0; i < N * N; i++) {
+      if (!w.lacks(i, kind)) continue;
+      const x = i % N, y = (i / N) | 0, key = ((y / C) | 0) * 100 + ((x / C) | 0);
+      const c = cells.get(key) || { n: 0, sx: 0, sy: 0 };
+      c.n++; c.sx += x; c.sy += y;
+      cells.set(key, c);
+    }
+    const list = [...cells.values()].sort((a, b) => b.n - a.n);
+    if (!list.length) return;
+    this.problemIdx = this.problemIdx || {};
+    const k = (this.problemIdx[kind] ?? -1) + 1 < list.length ? (this.problemIdx[kind] ?? -1) + 1 : 0;
+    this.problemIdx[kind] = k;
+    const c = list[k], x = c.sx / c.n, y = c.sy / c.n;
+    this.scene.setCamera((x - y) * 64, (x + y + 1) * 32, Math.max(this.scene.cam.zoom, 0.6));
+    this.coverageFlash = kind === 'power' ? 1 : 2;
+    this.coverageUntil = performance.now() + 6000;
+    this.updateCoverage();
+    const what = kind === 'power' ? 'sem energia' : 'sem água';
+    const fix = kind === 'power' ? 'uma usina (tecla 7)' : "uma caixa d'água (tecla 8)";
+    this.ui.toast(`Região ${k + 1} de ${list.length}: ${c.n} prédio${c.n > 1 ? 's' : ''} ${what}. Coloque ${fix} por perto.`);
+  },
+
   inspect({ x, y }) {
     if (!this.world.inside(x, y)) { this.ui.hideInfo(); return; }
     this.ui.showInfo(y * N + x);
@@ -69,6 +104,8 @@ const game = {
     this.world = w;
     this.scene.build(w);
     this.traffic?.reset();
+    this.coverageSig = null;
+    this.scene.refreshBadges();
     this.focusStart();
     this.ui.hideInfo();
     this.ui.update();
@@ -115,7 +152,7 @@ async function start() {
   app.renderer.on('resize', () => { game.scene.camDirty = true; });
   window.addEventListener('visibilitychange', () => { if (document.hidden) game.save(); });
 
-  let hudT = 0;
+  let hudT = 0, badgeT = 0;
   app.ticker.add(t => {
     const dt = Math.min(0.1, t.deltaMS / 1000);
     game.input.update(dt);
@@ -141,6 +178,8 @@ async function start() {
     game.scene.sync();
     game.traffic.update(dt);
     game.scene.updateSmoke(dt, game.speed > 0);
+    if ((badgeT += dt) > 0.5) { badgeT = 0; game.scene.refreshBadges(); game.updateCoverage(); }
+    game.scene.animateBadges(t.lastTime / 1000);
     game.scene.updateCamera();
     if ((hudT += dt) > 0.15) { hudT = 0; game.ui.update(); }
   });

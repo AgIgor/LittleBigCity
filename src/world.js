@@ -77,6 +77,14 @@ export class World {
     }
   }
 
+  // Prédios que não conseguem crescer por falta de serviço.
+  // 'power': qualquer prédio sem energia; 'water': nível 2+ sem água.
+  lacks(i, kind) {
+    const lv = this.bld[i];
+    if (!lv) return false;
+    return kind === 'power' ? !this.power[i] : lv >= 2 && !this.water[i];
+  }
+
   neighbors4(i) {
     const x = i % N, y = (i / N) | 0, out = [];
     if (x > 0) out.push(i - 1);
