@@ -1,10 +1,11 @@
 // Mouse, toque e teclado.
 // Mouse: botão esquerdo usa a ferramenta, direito/meio arrasta o mapa, roda dá zoom.
 // Toque: um dedo usa a ferramenta (ou arrasta, no modo Inspecionar), dois dedos movem e dão zoom.
-import { TOOLS, plan } from './actions.js';
-import { SVC_RADIUS, SVC_KEY } from './config.js';
+import { plan } from './actions.js';
+import { BY_KEY } from './catalog.js';
 
-const TOOL_KEYS = { 1: 'inspect', 2: 'clear', 3: 'road', 4: 'avenue', 5: 'zoneR', 6: 'zoneC', 7: 'zoneI', 8: 'services', 9: 'park', 0: 'demolish' };
+// 1 mão, 2 a 7 abrem as categorias do catálogo, 8 demolir
+const TOOL_KEYS = { 1: 'inspect', 2: 'cat:road', 3: 'cat:home', 4: 'cat:shop', 5: 'cat:work', 6: 'cat:deco', 7: 'cat:special', 8: 'demolish' };
 
 export class Input {
   constructor(canvas, game) {
@@ -44,6 +45,11 @@ export class Input {
     if (this.pointers.size > 2) return;
 
     const panButton = e.pointerType === 'mouse' && (e.button === 1 || e.button === 2);
+    // tocar numa moeda coleta, com qualquer ferramenta
+    if (!panButton) {
+      const coin = this.scene.coinAt(e.offsetX, e.offsetY);
+      if (coin >= 0) { this.game.collect(coin); this.mode = 'coin'; return; }
+    }
     if (panButton || this.game.tool === 'inspect') {
       this.mode = 'pan';
       this.panMoved = false;
@@ -98,6 +104,7 @@ export class Input {
       if (this.pointers.size === 0) this.mode = null;
       return;
     }
+    if (this.mode === 'coin') { this.mode = null; return; }
     if (this.mode === 'pan') {
       if (!cancelled && this.panTool && !this.panMoved && p) this.game.inspect(this.tileAt(e));
       this.mode = null;
@@ -105,7 +112,7 @@ export class Input {
     }
     if (this.mode === 'tool') {
       this.mode = null;
-      if (!cancelled) this.game.act({ tool: this.game.tool, a: this.a, b: this.b });
+      if (!cancelled) this.game.act({ tool: this.game.tool, item: this.game.item, a: this.a, b: this.b });
       this.game.ui.costTip();
       if (e.pointerType === 'mouse') { this.a = this.b = this.tileAt(e); this.updatePreview(); }
       else this.clearHover();
@@ -135,13 +142,13 @@ export class Input {
       this.scene.setPreview([{ i: this.a.y * this.game.world.N + this.a.x, state: 'skip' }].filter(() => this.game.world.inside(this.a.x, this.a.y)));
       return;
     }
-    this.lastPlan = plan(this.game.world, tool, this.a, this.b);
-    const svc = TOOLS[tool].svc;
-    if (svc && SVC_RADIUS[svc]) {
-      // mostra a área que a usina / caixa d'água vai atender
-      const w = this.game.world, r = SVC_RADIUS[svc], { x: x0, y: y0 } = this.a, area = [];
+    this.lastPlan = plan(this.game.world, tool, this.a, this.b, this.game.item);
+    const it = BY_KEY[this.game.item];
+    if (tool === 'build' && it?.boost && !it.area) {
+      // mostra até onde vai o bônus de rendimento
+      const w = this.game.world, r = it.boost.r, { x: x0, y: y0 } = this.a, area = [];
       for (let y = y0 - r; y <= y0 + r; y++) for (let x = x0 - r; x <= x0 + r; x++) {
-        if ((x !== x0 || y !== y0) && w.inside(x, y) && (x - x0) ** 2 + (y - y0) ** 2 <= r * r) area.push({ i: y * w.N + x, state: SVC_KEY[svc] });
+        if ((x !== x0 || y !== y0) && w.inside(x, y) && Math.abs(x - x0) + Math.abs(y - y0) <= r) area.push({ i: y * w.N + x, state: 'area' });
       }
       this.scene.setPreview(this.lastPlan.tiles.concat(area));
     } else this.scene.setPreview(this.lastPlan.tiles);
@@ -165,9 +172,12 @@ export class Input {
     if (e.target.tagName === 'INPUT') return;
     const k = e.key.toLowerCase();
     if (down) {
-      if (TOOL_KEYS[k]) this.game.setTool(TOOL_KEYS[k]);
+      const t = TOOL_KEYS[k];
+      if (t?.startsWith('cat:')) this.game.ui.openCat(t.slice(4));
+      else if (t) this.game.setTool(t);
       else if (k === ' ') { e.preventDefault(); this.game.togglePause(); }
-      else if (k === 'escape') this.cancelTool();
+      else if (k === 'escape') { this.cancelTool(); this.game.setTool('inspect'); this.game.ui.closeCat(); }
+      else if (k === 'c') this.game.collectAll();
       else if (k === '+' || k === '=') this.scene.setCamera(undefined, undefined, this.scene.cam.zoom * 1.2);
       else if (k === '-') this.scene.setCamera(undefined, undefined, this.scene.cam.zoom / 1.2);
       this.keys.add(k);
@@ -192,4 +202,3 @@ export class Input {
   refresh() { if (this.a) this.updatePreview(); }
 }
 
-export { TOOLS };

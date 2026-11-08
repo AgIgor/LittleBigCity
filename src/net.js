@@ -4,7 +4,7 @@
 import { World } from './world.js';
 import { apply, fmt } from './actions.js';
 
-const PREFIX = 'littlebigcity-v1-';
+const PREFIX = 'littlebigcity-v2-';
 const COLORS = [0xf2c94c, 0x56ccf2, 0xeb5757, 0xbb6bd9, 0x6fcf97, 0xf2994a, 0xffffff, 0x2d9cdb];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -82,6 +82,8 @@ export class Net {
     switch (msg.t) {
       case 'act': {
         const r = apply(this.game.world, msg.action);
+        // efeitos (moedas, nível) aparecem para todos, inclusive no anfitrião
+        for (const ev of r.events) { this.game.onEvent(ev); this.queueEvent(ev); }
         conn.send({ t: 'actResult', ok: r.ok, msg: r.msg, cost: r.cost });
         break;
       }
@@ -120,11 +122,9 @@ export class Net {
     this.events = [];
     if (tiles || events || this.stateT > 0.5) {
       this.stateT = 0;
-      const h = w.history;
       this.broadcast({
-        t: 'delta', tiles, money: w.money, day: w.day, demand: w.demand, speed: this.game.speed, tax: w.tax, clock: w.clock,
-        goals: w.goals, disasters: w.disasters, weather: w.weather, festa: w.festa, counters: w.counters,
-        histLen: h.length, histLast: h[h.length - 1], events,
+        t: 'delta', tiles, money: w.money, xp: w.xp, level: w.level, day: w.day, speed: this.game.speed,
+        clock: w.clock, weather: w.weather, events,
       });
     }
   }
@@ -173,29 +173,20 @@ export class Net {
       case 'delta': {
         const w = g.world;
         if (msg.tiles) {
-          const roads = [];
-          let svc = false;
+          let roads = false, items = false;
           for (const s of msg.tiles) {
             const c = w.setTileState(s);
-            if (c.road) roads.push(s[0]);
-            if (c.svc) svc = true;
+            roads ||= c.road;
+            items ||= c.item;
           }
-          if (roads.length) w.roadsChangedAt(roads);
-          if (svc) w.recomputeServices();
-          // o anfitrião recalcula trânsito, poluição e valor a cada 5 dias; o convidado acompanha
-          if (svc || roads.length || ((msg.day / 5) | 0) !== this.valueStep) { this.valueStep = (msg.day / 5) | 0; w.recomputeDerived(); }
+          if (roads) w.recomputeRoadDist();
+          if (items) w.recomputeBoost();
           w.recomputeStats();
           g.input?.refresh();
         }
-        w.money = msg.money; w.day = msg.day; w.demand = msg.demand;
-        if (msg.tax) w.tax = msg.tax;
+        w.money = msg.money; w.xp = msg.xp; w.level = msg.level; w.day = msg.day;
         if (msg.clock != null) w.clock = msg.clock;
-        if (msg.goals != null) w.goals = msg.goals;
-        if (msg.disasters != null) w.disasters = msg.disasters;
         if (msg.weather) w.weather = msg.weather;
-        w.festa = msg.festa || null;
-        if (msg.counters) w.counters = msg.counters;
-        if (msg.histLast && msg.histLen > w.history.length) w.history.push(msg.histLast);
         for (const ev of msg.events || []) g.onEvent(ev);
         w.changed.clear();
         if (msg.speed !== g.speed) g.setSpeed(msg.speed, true);

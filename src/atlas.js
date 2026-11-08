@@ -7,7 +7,7 @@ const PAGE = 2048, PAD = 4;
 
 // Janelas acesas à noite: o prédio é desenhado de novo com parte das janelas
 // acesas (drawLit) e a textura "lit_" guarda só os pixels que mudaram.
-const LIT_KEYS = /^(b\d|svc(1|3|4|5|7|8|9|11|12|13)$|festa)/;
+const LIT_KEYS = /^(b\d|svc(1|3|4|5|7|8|9|11|12|13)$)/;
 function litVersion(s, fn) {
   let seed = 0;
   for (const ch of s.key) seed = (seed * 31 + ch.charCodeAt(0)) | 0;

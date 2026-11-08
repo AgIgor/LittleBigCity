@@ -987,51 +987,22 @@ function caixaDaguaServico() {
 }
 
 // Ícone flutuante de serviço faltando (âncora na ponta de baixo)
-const BADGE_COLOR = { power: '#f2c230', water: '#3d9be0', school: '#3fae5a', health: '#e04848', police: '#2e4a8a', garbage: '#8a6a3a' };
-function badge(kind) {
-  return mk(40, 48, 20, 46, x => {
-    ellipse(x, 0, -1, 7, 2.5, 'rgba(0,0,0,.3)');
-    x.beginPath();
-    x.moveTo(0, -4); x.lineTo(-6, -14); x.lineTo(6, -14); x.closePath();
-    x.fillStyle = '#fff'; x.fill();
-    circle(x, 0, -27, 15, '#fff');
-    circle(x, 0, -27, 12.5, BADGE_COLOR[kind]);
-    x.fillStyle = '#fff';
-    if (kind === 'power') {
-      poly(x, [[2, -37], [-6, -25], [-1, -25], [-3, -16], [6, -29], [1, -29]], '#fff');
-    } else if (kind === 'water') {
-      x.beginPath();
-      x.moveTo(0, -38); x.bezierCurveTo(4, -32, 7, -28, 7, -24); x.arc(0, -24, 7, 0, Math.PI); x.bezierCurveTo(-7, -28, -4, -32, 0, -38);
-      x.fill();
-    } else if (kind === 'school') {
-      // capelo de formatura
-      poly(x, [[0, -36], [10, -31], [0, -26], [-10, -31]], '#fff');
-      x.fillRect(-5, -29, 10, 6);
-      x.fillRect(8, -31, 1.5, 8);
-    } else if (kind === 'health') {
-      x.fillRect(-8, -30, 16, 6); x.fillRect(-3, -35, 6, 16);
-    } else if (kind === 'garbage') {
-      // lixeira
-      x.fillRect(-6, -32, 12, 14);
-      x.fillRect(-8, -35, 16, 3);
-      x.fillRect(-2, -38, 4, 3);
-      x.fillStyle = BADGE_COLOR.garbage;
-      for (const dx of [-3, 0, 3]) x.fillRect(dx - 0.6, -30, 1.2, 10);
-    } else {
-      // escudo com estrela
-      x.beginPath(); x.moveTo(0, -37); x.lineTo(8, -34); x.quadraticCurveTo(8, -22, 0, -17); x.quadraticCurveTo(-8, -22, -8, -34); x.closePath(); x.fill();
-      x.fillStyle = BADGE_COLOR.police;
-      x.beginPath();
-      for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? 2 : 4.5; x.lineTo(Math.cos(a) * rr, -28 + Math.sin(a) * rr); }
-      x.fill();
-    }
-    x.strokeStyle = 'rgba(0,0,0,.35)'; x.lineWidth = 1;
-    x.beginPath(); x.arc(0, -27, 15, 0, Math.PI * 2); x.stroke();
+// Moeda pronta para coletar (flutua sobre o prédio)
+function coinBadge() {
+  return mk(48, 56, 24, 54, x => {
+    ellipse(x, 0, -1, 9, 3, 'rgba(0,0,0,.3)');
+    circle(x, 0, -28, 17, '#a8761a');
+    circle(x, -1, -29, 16, '#f2c230');
+    circle(x, -1, -29, 12, '#e0a820');
+    circle(x, -1, -29, 11, '#ffd84a');
+    x.fillStyle = '#b8861e';
+    x.font = 'bold 15px system-ui, sans-serif';
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText('$', -1, -28);
+    x.strokeStyle = 'rgba(255,255,255,.75)'; x.lineWidth = 2;
+    x.beginPath(); x.arc(-1, -29, 13.5, Math.PI * 1.1, Math.PI * 1.45); x.stroke();
   });
 }
-
-// Luzes noturnas: poça de luz de poste e farol de carro (desenhadas em branco
-// quente; a cena usa mistura aditiva)
 function glow(w, h, col) {
   return mk(w, h, w / 2, h / 2, x => {
     x.save(); x.scale(1, h / w);
@@ -1056,7 +1027,7 @@ function smokePuff() {
 }
 
 // ======================================================================
-// Serviços novos, marcos da cidade, avenida, fogo, festa e chuva
+// Serviços, marcos da cidade, avenida e chuva
 // ======================================================================
 function coletaLixo() {
   return building(1700, x => {
@@ -1331,69 +1302,6 @@ function aveTile(mask) {
   });
 }
 
-// Chamas por cima do prédio: altura conforme o nível; 3 quadros de animação
-const FIRE_Z = [0, 34, 64, 150];
-function fireTile(level, frame) {
-  return mk(OBJ_W, BLD_H, OBJ_AX, BLD_AY, x => {
-    const r = mulberry32(2400 + level * 10 + frame);
-    const z = FIRE_Z[level];
-    const spots = [[0.35, 0.4], [0.6, 0.35], [0.5, 0.65], [0.7, 0.62], [0.3, 0.7]];
-    for (const [u, v] of spots) {
-      const [fx, fy] = P(u, v, z * (0.6 + r() * 0.4));
-      const h = 16 + r() * 14 + frame * 3, w = 7 + r() * 4;
-      for (const [col, k] of [['rgba(200,40,20,.85)', 1], ['rgba(250,130,30,.9)', 0.72], ['rgba(255,226,120,.95)', 0.42]]) {
-        x.beginPath();
-        x.moveTo(fx - w * k, fy);
-        x.quadraticCurveTo(fx - w * k * 0.8, fy - h * k * 0.6, fx + (r() - 0.5) * 4, fy - h * k);
-        x.quadraticCurveTo(fx + w * k * 0.8, fy - h * k * 0.6, fx + w * k, fy);
-        x.closePath();
-        x.fillStyle = col; x.fill();
-      }
-    }
-    // janelas com brilho de fogo
-    const [gx, gy] = P(0.5, 0.5, z * 0.5);
-    const g = x.createRadialGradient(gx, gy, 2, gx, gy, 46);
-    g.addColorStop(0, 'rgba(255,140,40,.35)'); g.addColorStop(1, 'rgba(255,140,40,0)');
-    x.fillStyle = g; x.beginPath(); x.arc(gx, gy, 46, 0, Math.PI * 2); x.fill();
-  });
-}
-
-// Festa na praça: bandeirinhas e varal de lâmpadas
-function festaTile(kind) {
-  return mk(OBJ_W, BLD_H, OBJ_AX, BLD_AY, x => {
-    const r = mulberry32(2500 + kind);
-    const cols = [['#e8423a', '#f2c94c', '#3a8ae8', '#3fae5a', '#f2994a'], ['#e07aa8', '#a86ad8', '#f2f0ea'], ['#2f8a4a', '#f2c94c', '#2e5f9a']][kind];
-    const posts = [[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]];
-    for (const [u, v] of posts) {
-      x.strokeStyle = '#6a4a32'; x.lineWidth = 2;
-      x.beginPath(); x.moveTo(...P(u, v, 0)); x.lineTo(...P(u, v, 44)); x.stroke();
-    }
-    const lines = [[posts[0], posts[2]], [posts[1], posts[3]], [posts[0], posts[1]], [posts[3], posts[2]]];
-    for (const [a, b] of lines) {
-      const [ax, ay] = P(a[0], a[1], 44), [bx, by] = P(b[0], b[1], 44);
-      const sag = 14;
-      x.strokeStyle = 'rgba(40,30,20,.7)'; x.lineWidth = 0.8;
-      x.beginPath(); x.moveTo(ax, ay); x.quadraticCurveTo((ax + bx) / 2, (ay + by) / 2 + sag * 2, bx, by); x.stroke();
-      for (let t = 0.06; t < 0.96; t += 0.08) {
-        const px = (1 - t) ** 2 * ax + 2 * (1 - t) * t * (ax + bx) / 2 + t * t * bx;
-        const py = (1 - t) ** 2 * ay + 2 * (1 - t) * t * ((ay + by) / 2 + sag * 2) + t * t * by;
-        if (LIT) circle(x, px, py + 1, 2, pick(r, ['#fff2b0', '#ffd27a', '#ffb0a0', '#b0e0ff']));
-        else poly(x, [[px - 3, py], [px + 3, py], [px, py + 6]], pick(r, cols));
-      }
-    }
-    // barraquinhas
-    for (const [u, v, col] of [[0.25, 0.3, cols[0]], [0.72, 0.68, cols[1]]]) {
-      box(x, u - 0.08, v - 0.06, u + 0.08, v + 0.06, 0, 12, '#c8a878');
-      box(x, u - 0.1, v - 0.08, u + 0.1, v + 0.08, 12, 15, col);
-      if (LIT) faceRect(x, 'R', u + 0.08, v - 0.05, v + 0.05, 2, 10, '#ffd88a');
-    }
-    // fogueira no centro
-    const [fx, fy] = P(0.5, 0.5);
-    for (let k = 0; k < 4; k++) { x.strokeStyle = '#5a3a22'; x.lineWidth = 2.5; x.beginPath(); x.moveTo(fx - 8 + k * 5, fy + 3); x.lineTo(fx - 2 + k, fy - 10); x.stroke(); }
-    ellipse(x, fx, fy - 4, 5, 7, LIT ? '#ffe080' : '#f2994a');
-  });
-}
-
 function rainDrop() {
   return mk(6, 30, 3, 0, x => {
     const g = x.createLinearGradient(0, 0, 0, 30);
@@ -1493,7 +1401,7 @@ export function allSprites() {
   list.svc1 = usina;
   list.svc2 = caixaDaguaServico;
   list.smoke = smokePuff;
-  for (const k of ['power', 'water', 'school', 'health', 'police', 'garbage']) list['badge_' + k] = () => badge(k);
+  list.coin = coinBadge;
   list.svc7 = coletaLixo;
   list.svc8 = reciclagem;
   list.svc9 = bombeiros;
@@ -1502,8 +1410,6 @@ export function allSprites() {
   list.svc12 = estadio;
   list.svc13 = torre;
   for (let m = 0; m < 16; m++) list['ave' + m] = () => aveTile(m);
-  for (let lv = 1; lv <= 3; lv++) for (let f = 0; f < 3; f++) list[`fire${lv}_${f}`] = () => fireTile(lv, f);
-  for (let k = 0; k < 3; k++) list['festa' + k] = () => festaTile(k);
   list.rain = rainDrop;
   list.svc3 = escola;
   list.svc4 = postoSaude;

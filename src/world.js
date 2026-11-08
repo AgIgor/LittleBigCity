@@ -1,15 +1,13 @@
 import {
-  N, setMapSize, WATER, SAND, GRASS, DIRT, NONE, TREE, BUSH, ROCK,
-  START_MONEY, ROAD_REACH, RESIDENTS, JOBS_C, JOBS_I, ZR, ZC, ZI, SVC_RADIUS, SVC_KEY, SVC_PARK, SVC_POWER,
-  RANGE_KINDS, TAX_DEFAULT, SVC_COUNT, LANDMARKS, ROAD_CAP, JAM, SUN,
+  N, setMapSize, WATER, SAND, GRASS, DIRT, NONE, TREE, BUSH, ROCK, START_MONEY, ROAD_REACH, SUN,
 } from './config.js';
+import { ITEMS, BY_KEY, xpForLevel, areaHalf, MAX_BOOST } from './catalog.js';
 import { makeNoise, hash2, mulberry32 } from './rng.js';
 
-// road: 0 nada, 1 rua, 2 avenida. fire: dias em chamas (0 = sem fogo)
-const LAYERS = ['terrain', 'obj', 'ov', 'road', 'zone', 'bld', 'bvar', 'cons', 'shade', 'svc', 'fire'];
-
-// Valor do terreno: mínimo para um prédio residencial ou comercial chegar ao nível 3
-export const VALUE_FOR_L3 = 115;
+// road: 0 nada, 1 rua, 2 avenida. item: id do catálogo (0 = nada).
+// cons: dias de obra que faltam. timer: dias até a próxima moeda. coin: 1 = moeda esperando coleta.
+const LAYERS = ['terrain', 'obj', 'ov', 'road', 'item', 'bvar', 'cons', 'shade', 'timer', 'coin'];
+const TREE_BOOST = BY_KEY.tree.boost;
 
 export class World {
   constructor(seed, size = 128) {
@@ -18,34 +16,16 @@ export class World {
     this.seed = seed >>> 0;
     for (const k of LAYERS) this[k] = new Uint8Array(N * N);
     this.roadDist = new Uint8Array(N * N);
-    // Coberturas (derivadas da camada svc), uma por serviço com alcance
-    this.cover = {};
-    for (const k of RANGE_KINDS) this.cover[k] = new Uint8Array(N * N);
-    this.power = this.cover.power;
-    this.water = this.cover.water;
-    this.value = new Uint8Array(N * N);     // valor do terreno (derivado)
-    this.pollution = new Uint8Array(N * N); // poluição do ar (derivada)
-    this.jam = new Uint8Array(N * N);       // congestionamento em %: nas ruas e, nos prédios, o da melhor rua por perto
-    this.jamCount = 0;
-    this.valueVersion = 0;
+    this.boost = new Uint8Array(N * N);      // bônus de rendimento em % (derivado)
     this.money = START_MONEY;
+    this.xp = 0;
+    this.level = 1;
     this.day = 0;
-    this.clock = 0.33;                       // hora do dia: 0 = meia-noite, 0.5 = meio-dia
-    this.tax = { r: TAX_DEFAULT, c: TAX_DEFAULT, i: TAX_DEFAULT };
-    this.demand = { r: 1, c: 0, i: 0.3 };
-    this.goals = 0;                          // metas de população já alcançadas
-    this.disasters = true;                   // incêndios e enchentes ligados
+    this.clock = 0.33;                        // hora do dia: 0 = meia-noite, 0.5 = meio-dia
     this.weather = { kind: SUN, until: 4 };
-    this.festa = null;                       // { i, until }: festa numa praça
-    this.history = [];                       // um registro por mês, para os gráficos
-    this.counters = { fires: 0, burned: 0, floods: 0, festas: 0 };
+    this.center = { x: N >> 1, y: N >> 1 };   // centro da área construível
     this.rngState = (this.seed ^ 0x9e3779b9) >>> 0;
-    this.stats = {
-      pop: 0, jobsC: 0, jobsI: 0, roads: 0, bridges: 0, buildings: 0,
-      lack: { power: 0, water: 0, school: 0, health: 0, police: 0, garbage: 0 },
-      services: new Array(SVC_COUNT).fill(0), lastIncome: 0, lastCost: 0, budget: null,
-      burning: 0, avenues: 0, recyclePop: 0,
-    };
+    this.stats = { pop: 0, jobs: 0, buildings: 0, coins: 0, count: new Array(ITEMS.length).fill(0) };
     this.dirty = new Set();     // tiles que o desenho precisa atualizar
     this.changed = new Set();   // tiles que o anfitrião precisa enviar aos outros jogadores
   }
@@ -85,159 +65,62 @@ export class World {
         else if (stone(x / 9, y / 9, 2) > 0.7 && h < 0.35) this.obj[i] = ROCK;
       } else if (t === SAND && h < 0.06) this.obj[i] = BUSH;
     }
+    this.pickCenter();
     this.recomputeAll();
+  }
+
+  // Centro da cidade: o ponto com mais campo aberto em volta, perto do meio do mapa
+  pickCenter() {
+    let best = -1, bx = N >> 1, by = N >> 1;
+    const R = 8;
+    for (let y = R; y < N - R; y += 2) for (let x = R; x < N - R; x += 2) {
+      let land = 0;
+      for (let dy = -R; dy <= R; dy += 2) for (let dx = -R; dx <= R; dx += 2) {
+        const j = (y + dy) * N + x + dx;
+        if (this.terrain[j] !== WATER) land += this.obj[j] === TREE ? 0.5 : 1;   // campo aberto é melhor para começar
+      }
+      const score = land * 10 - Math.hypot(x - N / 2, y - N / 2);
+      if (score > best) { best = score; bx = x; by = y; }
+    }
+    this.center = { x: bx, y: by };
+  }
+
+  // A área construível cresce com o nível
+  get half() { return areaHalf(this.level, N); }
+  inArea(x, y) {
+    const h = this.half;
+    return Math.abs(x - this.center.x) <= h && Math.abs(y - this.center.y) <= h;
   }
 
   recomputeAll() {
     this.recomputeRoadDist();
-    this.recomputeServices();
-    this.recomputeDerived();
+    this.recomputeBoost();
     this.recomputeStats();
   }
 
-  // Trânsito, poluição e valor do terreno dependem uns dos outros, nessa ordem
-  recomputeDerived() {
-    this.recomputeTraffic();
-    this.recomputePollution();
-    this.recomputeValue();
-  }
-
-  // Soma 'amount' em volta de i, diminuindo com a distância (losango de raio r).
-  // Com onlyRoads, só soma nos tiles de rua.
-  spread(arr, i, r, amount, onlyRoads) {
-    const x0 = i % N, y0 = (i / N) | 0;
-    for (let y = Math.max(0, y0 - r); y <= Math.min(N - 1, y0 + r); y++) {
-      for (let x = Math.max(0, x0 - r); x <= Math.min(N - 1, x0 + r); x++) {
-        const j = y * N + x;
-        if (onlyRoads && !this.road[j]) continue;
-        const d = Math.abs(x - x0) + Math.abs(y - y0);
-        if (d <= r) arr[j] += amount * (1 - d / (r + 1));
-      }
-    }
-  }
-
-  // Cada prédio gera viagens nas ruas em volta. Carga dividida pela
-  // capacidade da rua dá o congestionamento; ônibus tiram parte dos carros.
-  recomputeTraffic() {
-    const load = new Float32Array(N * N);
-    for (let i = 0; i < N * N; i++) {
-      const lv = this.bld[i];
-      if (!lv || this.cons[i]) continue;
-      const z = this.zone[i];
-      const trips = z === ZR ? RESIDENTS[lv] * 0.25 : z === ZC ? JOBS_C[lv] * 0.2 : z === ZI ? JOBS_I[lv] * 0.2 : 0;
-      if (trips) this.spread(load, i, 4, trips, true);
-    }
-    const jam = this.jam;
-    jam.fill(0);
-    let count = 0;
-    for (let i = 0; i < N * N; i++) {
-      if (!this.road[i]) continue;
-      const l = load[i] * (this.cover.bus[i] ? 0.6 : 1);
-      jam[i] = Math.min(255, Math.round(l / ROAD_CAP[this.road[i]] * 100));
-      if (jam[i] > JAM) count++;
-    }
-    this.jamCount = count;
-    // cada lote usa a rua menos cheia que alcança
-    for (let i = 0; i < N * N; i++) {
-      if (this.road[i] || !this.zone[i]) continue;
+  // Bônus de rendimento: decoração, especiais e árvores somam em volta
+  recomputeBoost() {
+    const b = new Float32Array(N * N);
+    const add = (i, r, pct) => {
       const x0 = i % N, y0 = (i / N) | 0;
-      let best = 255;
-      for (let dy = -ROAD_REACH; dy <= ROAD_REACH; dy++) for (let dx = -ROAD_REACH; dx <= ROAD_REACH; dx++) {
-        if (Math.abs(dx) + Math.abs(dy) > ROAD_REACH) continue;
-        const x = x0 + dx, y = y0 + dy;
-        if (x < 0 || y < 0 || x >= N || y >= N) continue;
-        const j = y * N + x;
-        if (this.road[j] && jam[j] < best) best = jam[j];
-      }
-      jam[i] = best === 255 ? 0 : best;
-    }
-  }
-
-  // Poluição: indústria, usina e ruas paradas sujam o ar; mata e praças
-  // limpam um pouco; a reciclagem corta boa parte na sua área.
-  recomputePollution() {
-    const p = new Float32Array(N * N);
-    for (let i = 0; i < N * N; i++) {
-      if (this.bld[i] && this.zone[i] === ZI) this.spread(p, i, 6, 16 * this.bld[i]);
-      else if (this.svc[i] === SVC_POWER) this.spread(p, i, 8, 55);
-      else if (this.svc[i] === SVC_PARK) this.spread(p, i, 3, -8);
-      else if (this.obj[i] === TREE) this.spread(p, i, 2, -3);
-      if (this.road[i] && this.jam[i] > 60) this.spread(p, i, 2, (this.jam[i] - 60) * 0.12);
-    }
-    for (let i = 0; i < N * N; i++) {
-      const v = p[i] * (this.cover.recycle[i] ? 0.55 : 1);
-      this.pollution[i] = Math.max(0, Math.min(255, Math.round(v)));
-    }
-  }
-
-  // Marca os tiles dentro do raio de cada serviço
-  recomputeServices() {
-    for (const k of RANGE_KINDS) this.cover[k].fill(0);
-    for (let i = 0; i < N * N; i++) {
-      const sv = this.svc[i];
-      const out = this.cover[SVC_KEY[sv]];
-      if (!out) continue;
-      const r = SVC_RADIUS[sv], x0 = i % N, y0 = (i / N) | 0;
       for (let y = Math.max(0, y0 - r); y <= Math.min(N - 1, y0 + r); y++) {
         for (let x = Math.max(0, x0 - r); x <= Math.min(N - 1, x0 + r); x++) {
-          if ((x - x0) ** 2 + (y - y0) ** 2 <= r * r) out[y * N + x] = 1;
+          if (Math.abs(x - x0) + Math.abs(y - y0) <= r) b[y * N + x] += pct;
         }
       }
-    }
-  }
-
-  // Distância até a água, calculada uma vez (o terreno não muda)
-  waterDistance() {
-    if (this._waterDist) return this._waterDist;
-    const d = new Uint8Array(N * N).fill(255);
-    let frontier = [];
-    for (let i = 0; i < N * N; i++) if (this.terrain[i] === WATER) { d[i] = 0; frontier.push(i); }
-    for (let step = 1; step <= 6 && frontier.length; step++) {
-      const next = [];
-      for (const i of frontier) for (const j of this.neighbors4(i)) if (d[j] === 255) { d[j] = step; next.push(j); }
-      frontier = next;
-    }
-    return (this._waterDist = d);
-  }
-
-  // Valor do terreno (0 a 255, base 100): praças, água, mata, serviços e
-  // marcos valorizam; poluição e ruas congestionadas desvalorizam.
-  recomputeValue() {
-    const v = new Float32Array(N * N).fill(100);
-    const wd = this.waterDistance();
+    };
     for (let i = 0; i < N * N; i++) {
-      const lm = LANDMARKS[this.svc[i]];
-      if (lm) this.spread(v, i, lm.r, lm.value);
-      else if (this.svc[i] === SVC_PARK) this.spread(v, i, 6, 16);
-      else if (this.bld[i] && this.zone[i] === ZC) this.spread(v, i, 3, 3);
-      else if (this.obj[i] === TREE) this.spread(v, i, 2, 2.5);
+      const it = ITEMS[this.item[i]];
+      if (it?.boost && !this.cons[i]) add(i, it.boost.r, it.boost.pct);
+      else if (this.obj[i] === TREE) add(i, TREE_BOOST.r, TREE_BOOST.pct * 0.5);   // mata nativa vale metade
     }
-    for (let i = 0; i < N * N; i++) {
-      if (wd[i] > 0 && wd[i] <= 4) v[i] += (5 - wd[i]) * 7;
-      const c = this.cover;
-      v[i] += (c.school[i] + c.health[i] + c.police[i]) * 8 + c.fire[i] * 3;
-      v[i] -= this.pollution[i] * 0.4;
-      if (!this.road[i] && this.jam[i] > JAM) v[i] -= 10;
-      this.value[i] = Math.max(0, Math.min(255, v[i]));
-    }
-    this.valueVersion++;
+    for (let i = 0; i < N * N; i++) this.boost[i] = Math.min(MAX_BOOST, Math.round(b[i]));
   }
 
-  // Prédios que não conseguem crescer por falta de um serviço:
-  // power: qualquer prédio; water: nível 2+; school/health: residencial 2+;
-  // police: comércio e indústria 2+
-  lacks(i, kind) {
-    const lv = this.bld[i];
-    if (!lv) return false;
-    const z = this.zone[i];
-    switch (kind) {
-      case 'power': return !this.power[i];
-      case 'water': return lv >= 2 && !this.water[i];
-      case 'school': case 'health': return z === ZR && lv >= 2 && !this.cover[kind][i];
-      case 'police': return (z === ZC || z === ZI) && lv >= 2 && !this.cover.police[i];
-      case 'garbage': return lv >= 2 && !this.cover.garbage[i];
-    }
-    return false;
+  // Quanto rende uma coleta neste tile
+  payout(i) {
+    const it = ITEMS[this.item[i]];
+    return it?.income ? Math.round(it.income * (1 + this.boost[i] / 100)) : 0;
   }
 
   neighbors4(i) {
@@ -280,83 +163,112 @@ export class World {
     }
   }
 
-  // Depois de mexer em ruas: o alcance muda até ROAD_REACH tiles ao redor,
-  // então as marcações de zona dessa área precisam ser redesenhadas.
-  roadsChangedAt(tiles) {
-    this.recomputeRoadDist();
-    for (const i of tiles) {
-      const x = i % N, y = (i / N) | 0;
-      for (let dy = -ROAD_REACH; dy <= ROAD_REACH; dy++) for (let dx = -ROAD_REACH; dx <= ROAD_REACH; dx++) {
-        if (this.inside(x + dx, y + dy)) this.dirty.add(this.idx(x + dx, y + dy));
-      }
+  // Experiência: devolve os níveis alcançados (para avisar e premiar)
+  addXp(n) {
+    this.xp += n;
+    const ups = [];
+    while (this.xp >= xpForLevel(this.level)) {
+      this.xp -= xpForLevel(this.level);
+      this.level++;
+      ups.push(this.level);
     }
+    return ups;
   }
 
   // Estado de um tile para enviar pela rede
   tileState(i) {
-    return [i, this.terrain[i], this.obj[i], this.road[i], this.zone[i], this.bld[i], this.bvar[i], this.cons[i], this.svc[i], this.fire[i]];
+    return [i, this.terrain[i], this.obj[i], this.road[i], this.item[i], this.bvar[i], this.cons[i], this.timer[i], this.coin[i]];
   }
-  // Devolve o que mudou de estrutural (ruas, serviços) para o chamador recalcular
-  setTileState([i, t, o, r, z, b, bv, c, sv = 0, f = 0]) {
-    const changed = { road: this.road[i] !== r, svc: this.svc[i] !== sv };
-    this.terrain[i] = t; this.obj[i] = o; this.road[i] = r; this.zone[i] = z;
-    this.bld[i] = b; this.bvar[i] = bv; this.cons[i] = c; this.svc[i] = sv; this.fire[i] = f;
+  // Devolve o que mudou de estrutural (ruas, itens) para o chamador recalcular
+  setTileState([i, t, o, r, it, bv, c, tm, cn]) {
+    const changed = { road: this.road[i] !== r, item: this.item[i] !== it || this.obj[i] !== o || (!!this.cons[i]) !== (!!c) };
+    this.terrain[i] = t; this.obj[i] = o; this.road[i] = r; this.item[i] = it;
+    this.bvar[i] = bv; this.cons[i] = c; this.timer[i] = tm; this.coin[i] = cn;
     this.markDirty(i);
     return changed;
   }
 
   recomputeStats() {
-    let pop = 0, jc = 0, ji = 0, roads = 0, bridges = 0, b = 0, burning = 0, avenues = 0, recyclePop = 0;
-    const services = new Array(SVC_COUNT).fill(0);
-    const lack = { power: 0, water: 0, school: 0, health: 0, police: 0, garbage: 0 };
+    let pop = 0, jobs = 0, b = 0, coins = 0;
+    const count = new Array(ITEMS.length).fill(0);
     for (let i = 0; i < N * N; i++) {
-      if (this.road[i]) {
-        if (this.terrain[i] === WATER) bridges++; else roads++;
-        if (this.road[i] === 2) avenues++;
-      }
-      if (this.svc[i]) services[this.svc[i]]++;
-      const lv = this.bld[i];
-      if (!lv) continue;
+      const id = this.item[i];
+      if (!id) continue;
+      const it = ITEMS[id];
+      count[id]++;
+      jobs += it.workers || 0;               // vaga ocupada desde a obra
+      if (this.cons[i]) continue;
       b++;
-      if (this.fire[i]) burning++;
-      for (const k in lack) if (this.lacks(i, k)) lack[k]++;
-      const z = this.zone[i];
-      if (z === ZR) { pop += RESIDENTS[lv]; if (this.cover.recycle[i]) recyclePop += RESIDENTS[lv]; }
-      else if (z === ZC) jc += JOBS_C[lv];
-      else if (z === ZI) ji += JOBS_I[lv];
+      pop += it.pop || 0;
+      if (this.coin[i]) coins++;
     }
-    Object.assign(this.stats, { pop, jobsC: jc, jobsI: ji, roads, bridges, buildings: b, lack, services, burning, avenues, recyclePop });
+    Object.assign(this.stats, { pop, jobs, buildings: b, coins, count });
   }
+  get freeWorkers() { return this.stats.pop - this.stats.jobs; }
 
   // ---- salvar / carregar ----
   serialize() {
     const data = {
-      v: 1, n: N, seed: this.seed, money: this.money, day: this.day, clock: this.clock, tax: this.tax,
-      demand: this.demand, rng: this.rngState, stats: this.stats,
-      goals: this.goals, disasters: this.disasters, weather: this.weather, festa: this.festa,
-      history: this.history, counters: this.counters,
+      v: 2, n: N, seed: this.seed, money: this.money, xp: this.xp, level: this.level, day: this.day,
+      clock: this.clock, weather: this.weather, center: this.center, rng: this.rngState,
     };
     for (const k of LAYERS) data[k] = toB64(this[k]);
     return data;
   }
 
   static deserialize(data) {
-    if (!data || data.v !== 1) return null;
+    if (data?.v === 1) return migrateV1(data);
+    if (!data || data.v !== 2) return null;
     const w = new World(data.seed, data.n || 128);
-    for (const k of LAYERS) if (data[k]) w[k].set(fromB64(data[k]));   // saves antigos não têm 'svc'
-    Object.assign(w, { money: data.money, day: data.day, demand: data.demand, rngState: data.rng });
+    for (const k of LAYERS) if (data[k]) w[k].set(fromB64(data[k]));
+    Object.assign(w, { money: data.money, xp: data.xp, level: data.level, day: data.day, rngState: data.rng });
     if (data.clock != null) w.clock = data.clock;
-    if (data.tax) Object.assign(w.tax, data.tax);
-    if (data.goals != null) w.goals = data.goals;
-    if (data.disasters != null) w.disasters = data.disasters;
     if (data.weather) w.weather = data.weather;
-    if (data.festa) w.festa = data.festa;
-    if (Array.isArray(data.history)) w.history = data.history;
-    if (data.counters) Object.assign(w.counters, data.counters);
-    for (const k of ['lastIncome', 'lastCost', 'budget']) if (data.stats?.[k] != null) w.stats[k] = data.stats[k];
+    if (data.center) w.center = data.center;
     w.recomputeAll();
     return w;
   }
+}
+
+// Cidade da versão com zonas: cada prédio vira o item equivalente do catálogo
+const ZONE_ITEM = { 1: ['house', 'sobrado', 'apart'], 2: ['venda', 'loja', 'office'], 3: ['galpao', 'fabrica', 'industria'] };
+const SVC_ITEM = [null, 'power', 'watertower', 'school', 'health', 'police', null, 'garbage', 'recycle', 'fire', 'busstop', 'hall', 'stadium', 'tower'];
+const PARK_ITEM = ['fountain', 'playground', 'flowers'];
+function migrateV1(data) {
+  const w = new World(data.seed, data.n || 128);
+  for (const k of ['terrain', 'obj', 'ov', 'road', 'bvar', 'shade']) if (data[k]) w[k].set(fromB64(data[k]));
+  const zone = fromB64(data.zone), bld = fromB64(data.bld), cons = fromB64(data.cons);
+  const svc = data.svc ? fromB64(data.svc) : new Uint8Array(N * N);
+  let x0 = N, y0 = N, x1 = -1, y1 = -1;
+  for (let i = 0; i < N * N; i++) {
+    let key = null;
+    if (svc[i] === 6) key = PARK_ITEM[w.ov[i] % 3];
+    else if (svc[i]) key = SVC_ITEM[svc[i]];
+    else if (zone[i] && (bld[i] || cons[i])) key = ZONE_ITEM[zone[i]][Math.min(3, Math.max(1, bld[i] + (cons[i] ? 1 : 0))) - 1];
+    if (!key) continue;
+    const it = BY_KEY[key];
+    w.item[i] = it.id;
+    w.timer[i] = 1 + (i % (it.period || 1));
+    const x = i % N, y = (i / N) | 0;
+    x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+  }
+  for (let i = 0; i < N * N; i++) if (w.road[i]) {
+    const x = i % N, y = (i / N) | 0;
+    x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+  }
+  if (x1 < 0) w.pickCenter();
+  else {
+    // nível que cobre tudo o que já foi construído
+    w.center = { x: (x0 + x1) >> 1, y: (y0 + y1) >> 1 };
+    const need = Math.max(x1 - x0, y1 - y0) / 2 + 2;
+    while (w.level < 30 && w.half < need) w.level++;
+    w.money = Math.max(START_MONEY, Math.round(data.money / 10));
+  }
+  w.day = data.day || 0;
+  if (data.clock != null) w.clock = data.clock;
+  w.rngState = data.rng >>> 0;
+  w.recomputeAll();
+  return w;
 }
 
 function toB64(arr) {

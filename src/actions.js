@@ -1,34 +1,21 @@
 // Todas as mudanças feitas pelo jogador passam por aqui como "ações" simples
-// ({tool, a, b}). Assim, no multiplayer, basta enviar a ação para os outros.
-import {
-  N, WATER, GRASS, DIRT, NONE, COST, ZR, ZC, ZI, TAX_MAX, MILESTONES,
-  SVC_POWER, SVC_WATER, SVC_SCHOOL, SVC_HEALTH, SVC_POLICE, SVC_PARK,
-  SVC_GARBAGE, SVC_RECYCLE, SVC_FIRE, SVC_BUS, SVC_HALL, SVC_STADIUM, SVC_TOWER, LANDMARKS,
-} from './config.js';
+// ({tool, a, b, item}). Assim, no multiplayer, basta enviar a ação para o anfitrião.
+import { N, WATER, GRASS, DIRT, NONE, TREE, COST, ROAD_REACH } from './config.js';
+import { ITEMS, BY_KEY } from './catalog.js';
+import { gainXp } from './sim.js';
 
 export const TOOLS = {
-  inspect: { name: 'Inspecionar', shape: 'point' },
-  clear: { name: 'Desmatar', shape: 'rect' },
-  road: { name: 'Rua', shape: 'line' },
-  avenue: { name: 'Avenida', shape: 'line' },
-  zoneR: { name: 'Residencial', shape: 'rect', zone: ZR },
-  zoneC: { name: 'Comercial', shape: 'rect', zone: ZC },
-  zoneI: { name: 'Industrial', shape: 'rect', zone: ZI },
-  power: { name: 'Usina', shape: 'point', svc: SVC_POWER },
-  water: { name: "Caixa d'água", shape: 'point', svc: SVC_WATER },
-  school: { name: 'Escola', shape: 'point', svc: SVC_SCHOOL },
-  health: { name: 'Posto de saúde', shape: 'point', svc: SVC_HEALTH },
-  police: { name: 'Delegacia', shape: 'point', svc: SVC_POLICE },
-  garbage: { name: 'Coleta de lixo', shape: 'point', svc: SVC_GARBAGE },
-  recycle: { name: 'Reciclagem', shape: 'point', svc: SVC_RECYCLE },
-  fire: { name: 'Bombeiros', shape: 'point', svc: SVC_FIRE },
-  bus: { name: 'Ponto de ônibus', shape: 'point', svc: SVC_BUS },
-  hall: { name: 'Prefeitura', shape: 'point', svc: SVC_HALL },
-  stadium: { name: 'Estádio', shape: 'point', svc: SVC_STADIUM },
-  tower: { name: 'Torre panorâmica', shape: 'point', svc: SVC_TOWER },
-  park: { name: 'Praça', shape: 'rect', svc: SVC_PARK },
+  inspect: { name: 'Mão', shape: 'point' },
+  build: { name: 'Construir' },
   demolish: { name: 'Demolir', shape: 'rect' },
 };
+
+// Formato da ferramenta: ruas em linha, decorações de área em retângulo, o resto um tile
+export function shapeOf(tool, itemKey) {
+  if (tool !== 'build') return TOOLS[tool]?.shape || 'point';
+  const it = BY_KEY[itemKey];
+  return it?.road ? 'line' : it?.area ? 'rect' : 'point';
+}
 
 function tilesInShape(shape, a, b) {
   const out = [];
@@ -52,126 +39,120 @@ function tilesInShape(shape, a, b) {
   return out;
 }
 
-// Marco ainda travado? Devolve a meta que libera, ou null
-export function lockedBy(w, svc) {
-  const m = MILESTONES.findIndex(g => g.unlock === svc);
-  return m >= 0 && w.goals <= m ? MILESTONES[m] : null;
-}
-
 // Para cada tile: state 'ok' (será alterado), 'skip' (nada a fazer) ou 'bad' (proibido)
-function judge(w, tool, i) {
-  const svc = TOOLS[tool].svc;
-  if (svc) {
-    if (tool === 'park' && w.svc[i] === SVC_PARK) return ['skip', 0];
-    if (LANDMARKS[svc]) {
-      const lock = lockedBy(w, svc);
-      if (lock) return ['bad', 0, `Libera com ${lock.pop.toLocaleString('pt-BR')} habitantes`];
-      if (w.stats.services[svc]) return ['bad', 0, 'A cidade só pode ter um'];
-    }
-    if (w.terrain[i] === WATER || w.road[i]) return ['bad', 0, 'Precisa de terra firme fora da rua'];
-    if (w.bld[i] || w.cons[i] || w.svc[i]) return ['bad', 0, 'Já há uma construção aqui'];
-    if (svc === SVC_BUS && w.roadDist[i] !== 1) return ['bad', 0, 'O ponto precisa ficar ao lado de uma rua'];
-    return ['ok', COST[tool] + (w.obj[i] ? COST.clear[w.obj[i]] : 0)];
-  }
-  const t = w.terrain[i], o = w.obj[i], built = w.bld[i] || w.cons[i] || w.svc[i];
+function judge(w, tool, it, i, workersLeft) {
+  const t = w.terrain[i], o = w.obj[i], x = i % N, y = (i / N) | 0;
   const clearCost = o ? COST.clear[o] : 0;
-  switch (tool) {
-    case 'clear':
-      if (!o) return ['skip', 0];
-      return ['ok', clearCost];
-    case 'road':
-      if (w.road[i]) return ['skip', 0];
-      if (built) return ['bad', 0, 'Há um prédio no caminho'];
-      if (t === WATER) return ['ok', COST.bridge];       // vira ponte
-      return ['ok', COST.road + clearCost];
-    case 'avenue':
-      if (w.road[i] === 2) return ['skip', 0];
-      if (w.road[i] === 1) return ['ok', COST.avenueUp];
-      if (built) return ['bad', 0, 'Há um prédio no caminho'];
-      if (t === WATER) return ['ok', COST.bridge * 2];
-      return ['ok', COST.avenue + clearCost];
-    case 'zoneR': case 'zoneC': case 'zoneI': {
-      const z = TOOLS[tool].zone;
-      if (w.zone[i] === z) return ['skip', 0];
-      if (t === WATER || w.road[i]) return ['bad', 0, 'Zonas só em terra firme fora da rua'];
-      if (built) return ['bad', 0, 'Demolir o prédio antes de mudar a zona'];
-      return ['ok', COST.zone + clearCost];
+  if (tool === 'demolish') {
+    if (w.item[i]) {
+      const cur = ITEMS[w.item[i]];
+      if (cur.pop && !w.cons[i] && w.freeWorkers < cur.pop) return ['bad', 0, 'Os moradores dessa casa trabalham na cidade. Demola um comércio ou indústria antes'];
+      return ['ok', COST.demolish];
     }
-    case 'demolish':
-      if (w.svc[i]) return ['ok', COST.demolishSvc];
-      if (w.road[i]) return ['ok', COST.demolishRoad];
-      if (built) return ['ok', COST.demolishBld * Math.max(1, w.bld[i])];
-      if (w.zone[i]) return ['ok', 0];
-      return ['skip', 0];
+    if (w.road[i]) return ['ok', COST.demolish];
+    if (o) return ['ok', clearCost];
+    return ['skip', 0];
   }
-  return ['skip', 0];
+  if (!it) return ['skip', 0];
+  if (!w.inArea(x, y)) return ['bad', 0, 'Fora da área da cidade (ela cresce a cada nível)'];
+  if (it.level > w.level) return ['bad', 0, `Libera no nível ${it.level}`];
+  if (it.road) {
+    if (w.road[i] === it.road || (w.road[i] && it.road === 1)) return ['skip', 0];
+    if (w.item[i]) return ['bad', 0, 'Há uma construção no caminho'];
+    if (w.road[i]) return ['ok', it.cost];                          // alargar rua
+    if (t === WATER) return ['ok', COST.bridge * it.road];            // vira ponte
+    return ['ok', it.cost + clearCost];
+  }
+  if (t === WATER) return ['bad', 0, 'Não dá para construir na água'];
+  if (w.road[i]) return ['bad', 0, 'Não dá para construir na rua'];
+  if (it.tree) return o || w.item[i] ? ['skip', 0] : ['ok', it.cost];
+  if (w.item[i]) return it.area ? ['skip', 0] : ['bad', 0, 'Já há uma construção aqui'];
+  if (it.cat !== 'deco' && w.roadDist[i] > ROAD_REACH) return ['bad', 0, 'Precisa de uma rua a até 2 tiles'];
+  if (it.workers && workersLeft < it.workers) return ['bad', 0, `Faltam ${it.workers - Math.max(0, workersLeft)} trabalhadores: construa mais casas`];
+  return ['ok', it.cost + clearCost];
 }
 
-export function plan(w, tool, a, b) {
-  const def = TOOLS[tool];
+export function plan(w, tool, a, b, itemKey) {
+  const it = tool === 'build' ? BY_KEY[itemKey] : null;
   const tiles = [];
-  let cost = 0, bad = 0, reason = '';
-  for (const [x, y] of tilesInShape(def.shape, a, b)) {
+  let cost = 0, bad = 0, reason = '', workersLeft = w.freeWorkers;
+  for (const [x, y] of tilesInShape(shapeOf(tool, itemKey), a, b)) {
     if (x < 0 || y < 0 || x >= N || y >= N) continue;
     const i = y * N + x;
-    const [state, c, why] = judge(w, tool, i);
+    const [state, c, why] = judge(w, tool, it, i, workersLeft);
     tiles.push({ i, state });
-    if (state === 'ok') cost += c;
+    if (state === 'ok') { cost += c; if (it?.workers) workersLeft -= it.workers; }
     if (state === 'bad') { bad++; reason ||= why; }
   }
-  return { tiles, cost, bad, reason };
+  return { tiles, cost, bad, reason, item: it };
+}
+
+// Coleta as moedas de um tile; devolve o valor (0 se não havia moeda)
+function collectAt(w, i, events) {
+  if (!w.coin[i] || w.cons[i]) return 0;
+  const it = ITEMS[w.item[i]], amount = w.payout(i);
+  w.coin[i] = 0;
+  w.timer[i] = it.period;
+  w.money += amount;
+  w.changed.add(i);
+  events.push({ type: 'coin', i, amount });
+  return amount;
 }
 
 export function apply(w, action) {
   const { tool, a, b } = action;
-  if (tool === 'inspect') return { ok: true };
-  if (tool === 'tax') {
-    if (!['r', 'c', 'i'].includes(action.zone)) return { ok: false, msg: 'Zona inválida' };
-    w.tax[action.zone] = Math.max(0, Math.min(TAX_MAX, Math.round(+action.value || 0)));
-    return { ok: true, cost: 0 };
+  const events = [];
+  if (tool === 'inspect') return { ok: true, events };
+  if (tool === 'collect' || tool === 'collectAll') {
+    const list = tool === 'collect' ? [action.i | 0] : [];
+    if (tool === 'collectAll') for (let i = 0; i < N * N; i++) if (w.coin[i]) list.push(i);
+    let total = 0, n = 0;
+    for (const i of list) if (i >= 0 && i < N * N) { const v = collectAt(w, i, events); if (v) { total += v; n++; } }
+    if (!n) return { ok: false, msg: 'Nada para coletar', events };
+    gainXp(w, n, events);
+    w.recomputeStats();
+    return { ok: true, total, events };
   }
-  if (tool === 'setting') {
-    if (action.key !== 'disasters') return { ok: false, msg: 'Opção inválida' };
-    w.disasters = !!action.value;
-    return { ok: true, cost: 0 };
-  }
-  if (!TOOLS[tool]) return { ok: false, msg: 'Ferramenta inválida' };
-  const p = plan(w, tool, a, b);
+  if (!TOOLS[tool]) return { ok: false, msg: 'Ferramenta inválida', events };
+  const p = plan(w, tool, a, b, action.item);
   const todo = p.tiles.filter(t => t.state === 'ok');
-  if (!todo.length) return { ok: false, msg: p.reason || 'Nada para fazer aqui' };
-  if (p.cost > w.money) return { ok: false, msg: `Faltam R$ ${fmt(p.cost - w.money)}` };
+  if (!todo.length) return { ok: false, msg: p.reason || 'Nada para fazer aqui', events };
+  if (p.cost > w.money) return { ok: false, msg: `Faltam R$ ${fmt(p.cost - w.money)}`, events };
 
-  let roadsChanged = false, svcChanged = false;
-  const svc = TOOLS[tool].svc;
+  const it = p.item;
+  let roadsChanged = false, boostChanged = false, xp = 0;
   for (const { i } of todo) {
     const clearHere = () => {
-      if (w.obj[i]) { w.obj[i] = NONE; if (w.terrain[i] === GRASS) w.terrain[i] = DIRT; }
+      if (w.obj[i]) { if (w.obj[i] === TREE) boostChanged = true; w.obj[i] = NONE; if (w.terrain[i] === GRASS) w.terrain[i] = DIRT; }
     };
-    switch (tool) {
-      case 'clear': clearHere(); break;
-      case 'road': clearHere(); w.road[i] = 1; roadsChanged = true; break;
-      case 'avenue': clearHere(); w.road[i] = 2; roadsChanged = true; break;
-      case 'zoneR': case 'zoneC': case 'zoneI': clearHere(); w.zone[i] = TOOLS[tool].zone; break;
-      case 'demolish':
-        if (w.svc[i]) { w.svc[i] = 0; svcChanged = true; }
-        else if (w.road[i]) { w.road[i] = 0; roadsChanged = true; }
-        else if (w.bld[i] || w.cons[i]) { w.bld[i] = 0; w.cons[i] = 0; w.fire[i] = 0; if (w.terrain[i] === GRASS) w.terrain[i] = DIRT; }
-        else w.zone[i] = 0;
-        break;
-      default:
-        if (svc) {
-          clearHere(); w.zone[i] = 0; w.svc[i] = svc; svcChanged = true;
-          if (w.terrain[i] === GRASS && tool !== 'park') w.terrain[i] = DIRT;
-        }
+    if (tool === 'demolish') {
+      if (w.item[i]) {
+        if (ITEMS[w.item[i]].boost) boostChanged = true;
+        w.item[i] = 0; w.cons[i] = 0; w.coin[i] = 0; w.timer[i] = 0;
+        if (w.terrain[i] === GRASS) w.terrain[i] = DIRT;
+      } else if (w.road[i]) { w.road[i] = 0; roadsChanged = true; }
+      else clearHere();
+    } else if (it.road) {
+      clearHere(); w.road[i] = it.road; roadsChanged = true;
+    } else if (it.tree) {
+      w.obj[i] = TREE; boostChanged = true; xp += it.xp;
+      if (w.terrain[i] === DIRT) w.terrain[i] = GRASS;
+    } else {
+      clearHere();
+      w.item[i] = it.id;
+      w.bvar[i] = (Math.random() * 256) | 0;
+      w.cons[i] = it.build || 1;
+      w.coin[i] = 0; w.timer[i] = 0;
+      if (w.terrain[i] === GRASS && it.cat !== 'deco') w.terrain[i] = DIRT;
     }
     w.markDirty(i);
   }
   w.money -= p.cost;
-  if (roadsChanged) w.roadsChangedAt(todo.map(t => t.i));
-  if (svcChanged) w.recomputeServices();
-  if (svcChanged || roadsChanged || tool === 'demolish' || tool === 'clear') w.recomputeDerived();
+  if (roadsChanged) w.recomputeRoadDist();
+  if (boostChanged) w.recomputeBoost();
+  if (xp) gainXp(w, xp, events);
   w.recomputeStats();
-  return { ok: true, cost: p.cost, count: todo.length };
+  return { ok: true, cost: p.cost, count: todo.length, events };
 }
 
 export function fmt(n) {

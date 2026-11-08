@@ -11,33 +11,18 @@
 
   <header id="top">
     <div class="brand">Little<b>Big</b>City</div>
-    <button class="stat click" id="moneyBtn" title="Abrir orçamento e impostos"><small>Caixa</small><span id="money">R$ 0</span></button>
-    <div class="stat" title="População"><small>População</small><span id="pop">0</span></div>
-    <div class="stat hide-sm" title="Empregos no comércio e na indústria"><small>Empregos</small><span id="jobs">0</span></div>
-    <div class="stat" title="Data e hora"><small>Data</small><span id="date">1 Jan · Ano 1</span></div>
+    <div class="stat" title="Moedas"><small>Moedas</small><span id="money">R$ 0</span></div>
+    <div class="stat" title="Moradores"><small>População</small><span id="pop">0</span></div>
+    <div class="stat" title="Moradores sem emprego: comércio e indústria precisam deles"><small>Trabalhadores</small><span id="workers">0</span></div>
+    <div class="level" title="Nível da cidade. Construir e coletar dá experiência">
+      <b id="levelNum">1</b>
+      <div><small>Nível</small><i><em id="xpBar"></em></i></div>
+    </div>
+    <div class="stat hide-sm" title="Data"><small>Data</small><span id="date">1 Jan · Ano 1</span></div>
     <div class="stat hide-sm" id="clockStat" title="Hora do dia"><small>Hora</small><span id="clock">08:00</span></div>
-    <button class="stat click hide-sm" id="budgetBtn" title="Saldo do último mês. Clique para ver o orçamento"><small>Último mês</small><span id="budget"></span></button>
-    <div id="alerts"></div>
-    <div class="menu-wrap">
-      <button id="mapBtn" class="topbtn" title="Mapas de valor, poluição e trânsito">
-        <svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>
-        <span id="mapLabel">Mapas</span>
-      </button>
-      <div id="mapMenu" class="pop">
-        <button data-overlay="value"><i class="sw value"></i>Valor do terreno</button>
-        <button data-overlay="pollution"><i class="sw pollution"></i>Poluição</button>
-        <button data-overlay="traffic"><i class="sw traffic"></i>Trânsito</button>
-      </div>
-    </div>
-    <button id="statsBtn" class="topbtn" title="Gráficos, metas e números da cidade">
-      <svg viewBox="0 0 24 24"><path d="M4 20V4M4 20h16"/><path d="M7 16l4-5 3 3 5-7"/></svg>
-      <span>Cidade</span>
+    <button id="collectBtn" title="Coletar todas as moedas (C)">
+      <span class="coin">$</span><span id="collectN">0</span>
     </button>
-    <div class="rci" title="Demanda: Residencial, Comercial, Industrial">
-      <div><i id="dem-r" class="r"></i><em>R</em></div>
-      <div><i id="dem-c" class="c"></i><em>C</em></div>
-      <div><i id="dem-i" class="i"></i><em>I</em></div>
-    </div>
     <div class="speeds">
       <button data-speed="0" title="Pausar (espaço)" class="pause">II</button>
       <button data-speed="1" title="Normal">▶</button>
@@ -71,7 +56,6 @@
         <button id="saveBtn">Salvar agora</button>
         <button id="newBtn">Novo mapa…</button>
         <label class="check"><input type="checkbox" id="dayNightChk" checked> Ciclo de dia e noite</label>
-        <label class="check"><input type="checkbox" id="disastersChk" checked> Desastres (incêndio e enchente)</label>
         <p id="seedInfo"></p>
         <p>Salva sozinho a cada mês de jogo.</p>
       </div>
@@ -82,29 +66,6 @@
     <button class="close" id="infoClose" title="Fechar">✕</button>
     <h3 id="infoTitle"></h3>
     <div id="infoBody"></div>
-  </aside>
-
-  <aside id="budgetPanel" class="panel">
-    <button class="close" id="budgetClose" title="Fechar">✕</button>
-    <h3>Orçamento</h3>
-    <div class="taxes">
-      <label><span><i class="dot r"></i>Residencial</span><input type="range" min="0" max="20" step="1" data-tax="r"><b data-taxv="r"></b></label>
-      <label><span><i class="dot c"></i>Comercial</span><input type="range" min="0" max="20" step="1" data-tax="c"><b data-taxv="c"></b></label>
-      <label><span><i class="dot i"></i>Industrial</span><input type="range" min="0" max="20" step="1" data-tax="i"><b data-taxv="i"></b></label>
-      <p class="note">Imposto alto enche o caixa, mas espanta moradores e empresas (a demanda cai). Padrão: 9%.</p>
-    </div>
-    <table id="budgetTable"></table>
-  </aside>
-
-  <aside id="statsPanel" class="panel">
-    <button class="close" id="statsClose" title="Fechar">✕</button>
-    <h3>Cidade</h3>
-    <div id="statsTabs" class="tabs">
-      <button data-tab="charts" class="on">Gráficos</button>
-      <button data-tab="goals">Metas</button>
-      <button data-tab="city">Números</button>
-    </div>
-    <div id="statsBody"></div>
   </aside>
 
   <div id="newMapDlg" class="dialog">
@@ -122,7 +83,7 @@
   </div>
 
   <footer id="bottom">
-    <div id="svcMenu" class="pop up"></div>
+    <div id="catMenu" class="pop up"></div>
     <div id="hint"></div>
     <nav id="tools"></nav>
   </footer>
