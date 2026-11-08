@@ -63,6 +63,19 @@ function clipDiamond(x, e = 0) {
 
 const EDGE = 'rgba(28,24,20,.55)';
 
+// Modo "aceso": o atlas redesenha cada prédio com parte das janelas acesas e
+// guarda só os pixels que mudaram. Como é o mesmo desenho, o que fica na frente
+// das janelas (telhados, placas) continua tapando a luz.
+let LIT = null;
+export function drawLit(fn, seed) {
+  LIT = { r: mulberry32(seed), inWin: false };
+  try { return fn(); } finally { LIT = null; }
+}
+function litColor(p = 0.55) {
+  if (!LIT || LIT.r() > p) return null;
+  return pick(LIT.r, ['#ffd27a', '#ffe09a', '#fff0c8', '#ffc870']);
+}
+
 // Caixa: desenha só as faces visíveis (direita u=u1, esquerda v=v1, topo)
 function box(x, u0, v0, u1, v1, z0, z1, col, opt = {}) {
   poly(x, [P(u1, v0, z0), P(u1, v1, z0), P(u1, v1, z1), P(u1, v0, z1)], shade(col, opt.right ?? 0.86), EDGE);
@@ -72,6 +85,7 @@ function box(x, u0, v0, u1, v1, z0, z1, col, opt = {}) {
 
 // Retângulo pintado numa face: face 'R' (u = c) ou 'L' (v = c); a = posição ao longo da face
 function faceRect(x, face, c, a0, a1, z0, z1, fill, stroke) {
+  if (LIT && !LIT.inWin && fill === GLASS) fill = '#ffdf9a';     // vitrines ficam acesas
   const pts = face === 'R'
     ? [P(c, a0, z0), P(c, a1, z0), P(c, a1, z1), P(c, a0, z1)]
     : [P(a0, c, z0), P(a1, c, z0), P(a1, c, z1), P(a0, c, z1)];
@@ -83,8 +97,11 @@ function windows(x, face, c, a0, a1, z0, floors, floorH, per, col, glint) {
   for (let f = 0; f < floors; f++) for (let k = 0; k < per; k++) {
     const wa = a0 + span * k + span * 0.22, wb = a0 + span * (k + 1) - span * 0.22;
     const za = z0 + f * floorH + floorH * 0.32, zb = z0 + f * floorH + floorH * 0.78;
-    faceRect(x, face, c, wa, wb, za, zb, col, 'rgba(240,235,220,.55)');
-    if (glint) faceRect(x, face, c, wa, wa + (wb - wa) * 0.35, za + (zb - za) * 0.5, zb, glint);
+    const lit = litColor();
+    if (LIT) LIT.inWin = true;
+    faceRect(x, face, c, wa, wb, za, zb, lit || col, 'rgba(240,235,220,.55)');
+    if (LIT) LIT.inWin = false;
+    if (glint && !lit) faceRect(x, face, c, wa, wa + (wb - wa) * 0.35, za + (zb - za) * 0.5, zb, glint);
   }
 }
 
@@ -640,6 +657,14 @@ function escritorio(variant) {
     const u0 = 0.18, v0 = 0.18, u1 = 0.84, v1 = 0.84, h = floors * fh;
     groundShadow(x, u0, v0, u1, v1, h);
     box(x, u0, v0, u1, v1, 0, h, glass, { top: false, right: 1.05, left: 0.78 });
+    if (LIT) {      // fachada de vidro: acende andar por andar, painel por painel
+      for (let f = 0; f < floors; f++) for (let k = 0; k < 5; k++) {
+        const a = k * 0.2, b = a + 0.2, z0 = f * fh + 3, z1 = (f + 1) * fh - 3;
+        const lr = litColor(0.45), ll = litColor(0.45);
+        if (lr) faceRect(x, 'R', u1, v0 + (v1 - v0) * (a + 0.02), v0 + (v1 - v0) * (b - 0.02), z0, z1, lr);
+        if (ll) faceRect(x, 'L', v1, u0 + (u1 - u0) * (a + 0.02), u0 + (u1 - u0) * (b - 0.02), z0, z1, ll);
+      }
+    }
     x.strokeStyle = 'rgba(220,235,245,.35)'; x.lineWidth = 1;
     for (let f = 1; f < floors; f++) { x.beginPath(); x.moveTo(...P(u1, v0, f * fh)); x.lineTo(...P(u1, v1, f * fh)); x.lineTo(...P(u0, v1, f * fh)); x.stroke(); }
     for (let a = 0.2; a < 1; a += 0.2) {

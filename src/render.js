@@ -56,6 +56,8 @@ export class Scene {
     this.camDirty = true;
     this.overlay = null;
     this.ambient = { tint: 0xffffff, lights: 0 };
+    this.objTint = 0xffffff;    // cor de cada objeto (as janelas acesas não escurecem)
+    this.litAlpha = 0;
   }
 
   sprite(key) {
@@ -203,18 +205,23 @@ export class Scene {
           const s = this.objS[i] = this.sprite(key);
           s.position.set(px, py);
           s.zIndex = (x + y) * 2 + 1;
+          s.tint = this.objTint;
           s.visible = this.inView(px, py);
           this.objects.addChild(s);
         } else this.setTex(this.objS[i], key);
       }
-      // janelas acesas à noite
+      // janelas acesas à noite: logo acima do próprio prédio, para que os
+      // prédios da frente tapem a luz das janelas de trás
       const litKey = 'lit_' + key;
       if (this.tex[litKey]) {
         if (!this.litS[i]) {
           const s = this.litS[i] = this.sprite(litKey);
           s.position.set(px, py);
-          s.visible = this.inView(px, py);
-          this.lightsLayer.addChild(s);
+          s.zIndex = (x + y) * 2 + 1.01;
+          s.isLit = true;
+          s.alpha = this.litAlpha;
+          s.visible = this.litAlpha > 0.02 && this.inView(px, py);
+          this.objects.addChild(s);
         } else this.setTex(this.litS[i], litKey);
       } else if (this.litS[i]) { this.litS[i].destroy(); this.litS[i] = null; }
     }
@@ -255,8 +262,17 @@ export class Scene {
     this.ambient = amb;
     // com o mapa de valor ligado, mostra tudo claro para dar para ler as cores
     const tint = this.overlay ? 0xffffff : amb.tint;
-    for (const l of [this.groundLayer, this.roadLayer, this.zoneLayer, this.objects, this.smokeLayer]) l.tint = tint;
+    for (const l of [this.groundLayer, this.roadLayer, this.zoneLayer, this.smokeLayer]) l.tint = tint;
     const lights = this.overlay ? 0 : amb.lights;
+    // os objetos são escurecidos um a um, porque as janelas acesas ficam no
+    // meio deles (ordenadas por profundidade) e não podem pegar a cor da noite
+    const tintChanged = tint !== this.objTint;
+    this.objTint = tint;
+    this.litAlpha = lights;
+    for (const o of this.objects.children) {
+      if (o.isLit) { o.alpha = lights; o.visible = lights > 0.02 && this.inView(o.x, o.y); }
+      else if (tintChanged) o.tint = tint;
+    }
     this.glowLayer.alpha = lights * 0.9;
     this.lightsLayer.alpha = lights;
     this.glowLayer.visible = this.lightsLayer.visible = lights > 0.02;
@@ -389,7 +405,8 @@ export class Scene {
       const k = cy * CN + cx;
       this.groundChunks[k].visible = this.roadChunks[k].visible = this.zoneChunks[k].visible = vis;
     }
-    for (const o of this.objects.children) o.visible = this.inView(o.x, o.y);
+    const litOn = this.litAlpha > 0.02;
+    for (const o of this.objects.children) o.visible = (!o.isLit || litOn) && this.inView(o.x, o.y);
     for (const o of this.glowLayer.children) o.visible = this.inView(o.x, o.y);
     for (const o of this.lightsLayer.children) if (!o.isHeadlight) o.visible = this.inView(o.x, o.y);
     for (const c of this.cursorMap.values()) c.label.scale.set(1 / this.cam.zoom);

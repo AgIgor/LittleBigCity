@@ -1,42 +1,38 @@
 // Junta todos os sprites em poucas texturas grandes (atlas), o que deixa o
 // WebGL desenhar milhares de tiles em poucas chamadas.
 import { Texture, CanvasSource, Rectangle } from '../lib/pixi.min.mjs';
-import { allSprites } from './art.js';
+import { allSprites, drawLit } from './art.js';
 
 const PAGE = 2048, PAD = 4;
 
-// Janelas acesas à noite: pega os pixels com cor de vidro (azul-acinzentado
-// escuro) e acende só parte deles, sorteando por "célula" de janela.
+// Janelas acesas à noite: o prédio é desenhado de novo com parte das janelas
+// acesas (drawLit) e a textura "lit_" guarda só os pixels que mudaram.
 const LIT_KEYS = /^(b\d|svc[1345]$)/;
-function litVersion(s) {
-  const src = s.c.getContext('2d').getImageData(0, 0, s.w, s.h);
-  const out = new ImageData(s.w, s.h), a = src.data, o = out.data;
+function litVersion(s, fn) {
   let seed = 0;
   for (const ch of s.key) seed = (seed * 31 + ch.charCodeAt(0)) | 0;
+  const l = drawLit(fn, seed);
+  const a = s.c.getContext('2d').getImageData(0, 0, s.w, s.h).data;
+  const lit = l.c.getContext('2d').getImageData(0, 0, s.w, s.h);
+  const b = lit.data;
   let any = false;
-  for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) {
-    const k = (y * s.w + x) * 4, r = a[k], g = a[k + 1], b = a[k + 2];
-    if (a[k + 3] < 200) continue;
-    const glass = b - r > 12 && b - r < 62 && g >= r - 4 && g <= b + 6 && r + g + b < 480;
-    if (!glass) continue;
-    let h = Math.imul(((x / 7) | 0) * 73856093 ^ ((y / 9) | 0) * 19349663 ^ seed, 2654435761) >>> 0;
-    if ((h & 1023) / 1023 > 0.55) continue;
-    const warm = (h >> 10) & 1;
-    o[k] = 255; o[k + 1] = warm ? 214 : 236; o[k + 2] = warm ? 130 : 190; o[k + 3] = 235;
+  for (let k = 0; k < a.length; k += 4) {
+    const d = Math.abs(a[k] - b[k]) + Math.abs(a[k + 1] - b[k + 1]) + Math.abs(a[k + 2] - b[k + 2]);
+    if (d < 40) { b[k + 3] = 0; continue; }
+    b[k + 3] = Math.min(255, d * 1.5) * (b[k + 3] / 255);
     any = true;
   }
   if (!any) return null;
-  const c = document.createElement('canvas');
-  c.width = s.w; c.height = s.h;
-  c.getContext('2d').putImageData(out, 0, 0);
-  return { key: 'lit_' + s.key, c, w: s.w, h: s.h, ax: s.ax, ay: s.ay };
+  l.c.getContext('2d').putImageData(lit, 0, 0);
+  return { key: 'lit_' + s.key, c: l.c, w: s.w, h: s.h, ax: s.ax, ay: s.ay };
 }
 
 export function buildAtlas() {
-  const sprites = Object.entries(allSprites()).map(([key, fn]) => ({ key, ...fn() }));
+  const fns = allSprites();
+  const sprites = Object.entries(fns).map(([key, fn]) => ({ key, ...fn() }));
   for (const s of sprites.slice()) {
     if (!LIT_KEYS.test(s.key)) continue;
-    const lit = litVersion(s);
+    const lit = litVersion(s, fns[s.key]);
     if (lit) sprites.push(lit);
   }
   sprites.sort((a, b) => b.h - a.h);

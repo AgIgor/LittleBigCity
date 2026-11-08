@@ -82,6 +82,7 @@ export class Traffic {
     const t = this.scene.tex[base + (kind === 'ped' ? 0 : dir)];
     s.anchor.set(t.ax, t.ay);
     s.alpha = 0;
+    s.tint = this.scene.objTint;
     this.scene.objects.addChild(s);
     const a = {
       kind, base, s, x, y, dir, inDir: dir, t: 0.5 + Math.random() * 0.4, speed,
