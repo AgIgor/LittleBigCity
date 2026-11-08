@@ -15,12 +15,23 @@
     <div class="stat" title="População"><small>População</small><span id="pop">0</span></div>
     <div class="stat hide-sm" title="Empregos no comércio e na indústria"><small>Empregos</small><span id="jobs">0</span></div>
     <div class="stat" title="Data e hora"><small>Data</small><span id="date">1 Jan · Ano 1</span></div>
-    <div class="stat hide-sm" title="Hora do dia"><small>Hora</small><span id="clock">08:00</span></div>
+    <div class="stat hide-sm" id="clockStat" title="Hora do dia"><small>Hora</small><span id="clock">08:00</span></div>
     <button class="stat click hide-sm" id="budgetBtn" title="Saldo do último mês. Clique para ver o orçamento"><small>Último mês</small><span id="budget"></span></button>
     <div id="alerts"></div>
-    <button id="valueBtn" title="Mapa de valor do terreno">
-      <svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>
-      <span>Valor</span>
+    <div class="menu-wrap">
+      <button id="mapBtn" class="topbtn" title="Mapas de valor, poluição e trânsito">
+        <svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>
+        <span id="mapLabel">Mapas</span>
+      </button>
+      <div id="mapMenu" class="pop">
+        <button data-overlay="value"><i class="sw value"></i>Valor do terreno</button>
+        <button data-overlay="pollution"><i class="sw pollution"></i>Poluição</button>
+        <button data-overlay="traffic"><i class="sw traffic"></i>Trânsito</button>
+      </div>
+    </div>
+    <button id="statsBtn" class="topbtn" title="Gráficos, metas e números da cidade">
+      <svg viewBox="0 0 24 24"><path d="M4 20V4M4 20h16"/><path d="M7 16l4-5 3 3 5-7"/></svg>
+      <span>Cidade</span>
     </button>
     <div class="rci" title="Demanda: Residencial, Comercial, Industrial">
       <div><i id="dem-r" class="r"></i><em>R</em></div>
@@ -60,6 +71,7 @@
         <button id="saveBtn">Salvar agora</button>
         <button id="newBtn">Novo mapa…</button>
         <label class="check"><input type="checkbox" id="dayNightChk" checked> Ciclo de dia e noite</label>
+        <label class="check"><input type="checkbox" id="disastersChk" checked> Desastres (incêndio e enchente)</label>
         <p id="seedInfo"></p>
         <p>Salva sozinho a cada mês de jogo.</p>
       </div>
@@ -82,6 +94,17 @@
       <p class="note">Imposto alto enche o caixa, mas espanta moradores e empresas (a demanda cai). Padrão: 9%.</p>
     </div>
     <table id="budgetTable"></table>
+  </aside>
+
+  <aside id="statsPanel" class="panel">
+    <button class="close" id="statsClose" title="Fechar">✕</button>
+    <h3>Cidade</h3>
+    <div id="statsTabs" class="tabs">
+      <button data-tab="charts" class="on">Gráficos</button>
+      <button data-tab="goals">Metas</button>
+      <button data-tab="city">Números</button>
+    </div>
+    <div id="statsBody"></div>
   </aside>
 
   <div id="newMapDlg" class="dialog">

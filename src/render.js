@@ -3,7 +3,7 @@
 import { Container, Sprite, Text, Graphics } from '../lib/pixi.min.mjs';
 import {
   TW, TH, N, CHUNK, WATER, SAND, DIRT, TREE, BUSH, ROCK, ZONE_COLOR, ROAD_REACH,
-  SVC_RADIUS, SVC_COLOR, SVC_KEY, SVC_PARK, COVER_KINDS,
+  SVC_RADIUS, SVC_COLOR, SVC_KEY, SVC_PARK, COVER_KINDS, JAM, RAIN, STORM, CLOUDY,
 } from './config.js';
 import { TREE_VARIANTS, BUSH_VARIANTS, ROCK_VARIANTS, BUILDINGS, CHIMNEYS, PARK_VARIANTS } from './art.js';
 import { hash2 } from './rng.js';
@@ -45,6 +45,19 @@ function valueColor(v) {
   const t = Math.max(0, Math.min(1, (v - 50) / 120));
   return t < 0.5 ? mixColor(0xd8483a, 0xf2d24a, t * 2) : mixColor(0xf2d24a, 0x4ac85a, (t - 0.5) * 2);
 }
+// Poluição -> verde limpo, marrom, roxo muito poluído
+function pollutionColor(p) {
+  const t = Math.max(0, Math.min(1, p / 140));
+  return t < 0.5 ? mixColor(0x6ac86a, 0xb8964a, t * 2) : mixColor(0xb8964a, 0x8a3a8a, (t - 0.5) * 2);
+}
+// Congestionamento (%) -> verde, amarelo, vermelho
+function jamColor(j) {
+  const t = Math.max(0, Math.min(1, j / JAM));
+  return t < 0.6 ? mixColor(0x4ad85a, 0xf2d24a, t / 0.6) : mixColor(0xf2d24a, 0xe8382c, (t - 0.6) / 0.4);
+}
+// Clima: quanto a luz fica cinza e quantos pingos caem
+const WEATHER_GRAY = [0, 0.18, 0.38, 0.55];
+const RAIN_DROPS = [0, 0, 260, 520];
 
 export class Scene {
   constructor(app, atlas) {
@@ -58,6 +71,69 @@ export class Scene {
     this.ambient = { tint: 0xffffff, lights: 0 };
     this.objTint = 0xffffff;    // cor de cada objeto (as janelas acesas não escurecem)
     this.litAlpha = 0;
+    // chuva e relâmpago ficam por cima de tudo, em coordenadas de tela
+    this.weatherLayer = new Container();
+    app.stage.addChild(this.weatherLayer);
+    this.drops = [];
+    this.flash = new Graphics();
+    app.stage.addChild(this.flash);
+    this.flashA = 0;
+    this.boltT = 3;
+  }
+
+  // Mistura a luz do dia/noite com o cinza do tempo fechado
+  weatherAmbient(amb, kind) {
+    const k = WEATHER_GRAY[kind] || 0;
+    if (!k) return amb;
+    return { tint: mixColor(amb.tint, 0x7a8088, k), lights: Math.max(amb.lights, kind >= RAIN ? 0.35 : 0.15) };
+  }
+
+  updateWeather(dt, kind, running) {
+    const s = this.app.screen, want = RAIN_DROPS[kind] || 0;
+    while (this.drops.length < want) {
+      const d = this.sprite('rain');
+      d.position.set(Math.random() * s.width, Math.random() * s.height);
+      d.vy = 900 + Math.random() * 300;
+      d.alpha = 0.35 + Math.random() * 0.4;
+      this.weatherLayer.addChild(d);
+      this.drops.push(d);
+    }
+    while (this.drops.length > want) this.drops.pop().destroy();
+    const sp = running ? 1 : 0.15;
+    for (const d of this.drops) {
+      d.y += d.vy * dt * sp; d.x -= d.vy * 0.18 * dt * sp;
+      if (d.y > s.height) { d.y -= s.height + 30; d.x = Math.random() * (s.width + 200); }
+      if (d.x < -10) d.x += s.width + 20;
+    }
+    // relâmpagos na tempestade
+    if (kind === STORM && running && (this.boltT -= dt) < 0) {
+      this.boltT = 2 + Math.random() * 6;
+      this.flashA = 0.55;
+    }
+    if (this.flashA > 0 || this.flash.visible) {
+      this.flashA = Math.max(0, this.flashA - dt * 2.2);
+      this.flash.clear().rect(0, 0, s.width, s.height).fill({ color: 0xe8f0ff, alpha: this.flashA * (Math.random() < 0.2 ? 0.5 : 1) });
+      this.flash.visible = this.flashA > 0;
+    }
+  }
+
+  // Água subindo na área da enchente; some aos poucos
+  showFlood(tiles) {
+    for (const i of tiles) {
+      const s = this.sprite('water0');
+      const [px, py] = tileToWorld(i % N, (i / N) | 0);
+      s.position.set(px, py);
+      s.alpha = 0;
+      s.life = 0;
+      this.floodLayer.addChild(s);
+    }
+  }
+  updateFlood(dt) {
+    for (const s of [...this.floodLayer.children]) {
+      s.life += dt;
+      s.alpha = Math.min(0.8, s.life * 1.5) * Math.min(1, Math.max(0, (14 - s.life) / 5));
+      if (s.life > 14) s.destroy();
+    }
   }
 
   sprite(key) {
@@ -90,6 +166,7 @@ export class Scene {
     [this.roadLayer, this.roadChunks] = chunked();
     this.glowLayer = layer('add');            // postes acesos (abaixo dos prédios)
     [this.zoneLayer, this.zoneChunks] = chunked();
+    this.floodLayer = layer();
     this.coverage = new Graphics();
     this.root.addChild(this.coverage);
     this.coverageKind = 0;
@@ -114,6 +191,9 @@ export class Scene {
     this.objS = new Array(NN).fill(null);
     this.litS = new Array(NN).fill(null);
     this.objKey = new Array(NN).fill('');
+    this.fireS = new Map();        // tile -> sprite das chamas
+    this.festaS = null;
+    this.festaKey = '';
 
     for (let i = 0; i < NN; i++) {
       const x = i % N, y = (i / N) | 0, [px, py] = tileToWorld(x, y);
@@ -132,9 +212,16 @@ export class Scene {
   chunkOf(x, y) { return ((y / CHUNK) | 0) * this.CN + ((x / CHUNK) | 0); }
 
   groundTint(i) {
-    const w = this.world;
-    if (this.overlay === 'value' && w.terrain[i] !== WATER) return valueColor(w.value[i]);
+    const w = this.world, o = this.overlay;
+    if (o && w.terrain[i] !== WATER) {
+      if (o === 'value') return valueColor(w.value[i]);
+      if (o === 'pollution') return pollutionColor(w.pollution[i]);
+      if (o === 'traffic') return 0x707070;
+    }
     return w.terrain[i] === 2 ? grassTint(w.shade[i]) : 0xffffff;
+  }
+  roadTint(i) {
+    return this.overlay === 'traffic' ? jamColor(this.world.jam[i]) : this.overlay ? 0xb0b0b0 : 0xffffff;
   }
 
   refreshTile(i) {
@@ -156,7 +243,8 @@ export class Scene {
         s.position.set(px, py);
         this.roadChunks[this.chunkOf(x, y)].addChild(s);
       }
-      this.setTex(this.roadS[i], (t === WATER ? 'bridge' : 'road') + w.maskOf(i, j => w.road[j]));
+      this.setTex(this.roadS[i], (t === WATER ? 'bridge' : w.road[i] === 2 ? 'ave' : 'road') + w.maskOf(i, j => w.road[j]));
+      this.roadS[i].tint = this.roadTint(i);
       if (!this.lampS[i] && hash2(x, y, 99) < 0.45) {
         const s = this.lampS[i] = this.sprite('lampGlow');
         const side = hash2(y, x, 7) < 0.5 ? 1 : -1;
@@ -225,6 +313,55 @@ export class Scene {
         } else this.setTex(this.litS[i], litKey);
       } else if (this.litS[i]) { this.litS[i].destroy(); this.litS[i] = null; }
     }
+
+    // chamas
+    const fireKey = w.fire[i] && w.bld[i] ? `fire${w.bld[i]}_0` : '';
+    let f = this.fireS.get(i);
+    if (fireKey && !f) {
+      f = this.sprite(fireKey);
+      f.position.set(px, py);
+      f.zIndex = (x + y) * 2 + 1.02;
+      f.noTint = true;
+      f.level = w.bld[i];
+      f.visible = this.inView(px, py);
+      this.objects.addChild(f);
+      this.fireS.set(i, f);
+    } else if (!fireKey && f) { f.destroy(); this.fireS.delete(i); }
+    else if (f) f.level = w.bld[i];
+  }
+
+  // Festa: bandeirinhas na praça (e lâmpadas acesas à noite)
+  syncFesta() {
+    const fe = this.world.festa, key = fe ? `${fe.i}:${fe.kind || 0}` : '';
+    if (key === this.festaKey) return;
+    this.festaKey = key;
+    if (this.festaS) { for (const s of this.festaS) s.destroy(); this.festaS = null; }
+    if (!fe) return;
+    const x = fe.i % N, y = (fe.i / N) | 0, [px, py] = tileToWorld(x, y), k = fe.kind || 0;
+    const a = this.sprite('festa' + k), b = this.sprite('lit_festa' + k);
+    a.position.set(px, py); b.position.set(px, py);
+    a.zIndex = (x + y) * 2 + 1.03; b.zIndex = (x + y) * 2 + 1.04;
+    a.tint = this.objTint;
+    b.isLit = true; b.alpha = this.litAlpha; b.visible = this.litAlpha > 0.02;
+    this.objects.addChild(a, b);
+    this.festaS = [a, b];
+  }
+
+  // Chamas trocam de quadro e soltam fumaça escura
+  animateFire(time, dt, running) {
+    if (!this.fireS.size) return;
+    const fr = ((time * 8) | 0) % 3;
+    for (const [i, s] of this.fireS) {
+      const key = `fire${s.level}_${(fr + i) % 3}`;
+      if (this.tex[key]) this.setTex(s, key);
+      if (!running || !s.visible || Math.random() > dt * 6 || this.puffs.length > 600) continue;
+      const p = new Sprite(this.tex.smoke.texture);
+      p.anchor.set(0.5);
+      p.position.set(s.x + (Math.random() - 0.5) * 30, s.y - [0, 40, 75, 160][s.level] - 10);
+      p.tint = 0x2a2624;
+      this.smokeLayer.addChild(p);
+      this.puffs.push({ s: p, age: 0, life: 3 + Math.random(), vx: 10 + Math.random() * 10, vy: -26 - Math.random() * 10 });
+    }
   }
 
   // Atualiza o que mudou no mundo desde o último quadro
@@ -234,15 +371,19 @@ export class Scene {
       for (const i of w.dirty) this.refreshTile(i);
       w.dirty.clear();
     }
-    if (this.overlay === 'value' && w.valueVersion !== this.valueVersion) this.retintGround();
+    if (this.overlay && w.valueVersion !== this.valueVersion) this.retintGround();
     this.valueVersion = w.valueVersion;
+    this.syncFesta();
   }
 
   retintGround() {
-    for (let i = 0; i < N * N; i++) this.groundS[i].tint = this.groundTint(i);
+    for (let i = 0; i < N * N; i++) {
+      this.groundS[i].tint = this.groundTint(i);
+      if (this.roadS[i]) this.roadS[i].tint = this.roadTint(i);
+    }
   }
 
-  // Mapa de calor do valor do terreno (null desliga)
+  // Mapa de calor: 'value', 'pollution' ou 'traffic' (null desliga)
   setOverlay(kind) {
     this.overlay = kind;
     this.retintGround();
@@ -271,7 +412,7 @@ export class Scene {
     this.litAlpha = lights;
     for (const o of this.objects.children) {
       if (o.isLit) { o.alpha = lights; o.visible = lights > 0.02 && this.inView(o.x, o.y); }
-      else if (tintChanged) o.tint = tint;
+      else if (tintChanged && !o.noTint) o.tint = tint;
     }
     this.glowLayer.alpha = lights * 0.9;
     this.lightsLayer.alpha = lights;

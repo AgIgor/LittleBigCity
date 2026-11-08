@@ -34,7 +34,7 @@ export class Traffic {
     this.roads = out;
   }
 
-  isRoad(x, y) { return x >= 0 && y >= 0 && x < N && y < N && this.world.road[y * N + x] === 1; }
+  isRoad(x, y) { return x >= 0 && y >= 0 && x < N && y < N && this.world.road[y * N + x] > 0; }
 
   // Rua com prédio por perto: é de onde o movimento sai
   nearBuildings(i) {
@@ -59,12 +59,14 @@ export class Traffic {
   }
 
   targets() {
-    const s = this.world.stats, r = this.roads.length;
+    const w = this.world, s = w.stats, r = this.roads.length;
     const people = s.pop + s.jobsC + s.jobsI;
+    // com chuva quase ninguém anda a pé; em festa a rua enche
+    const wet = w.weather.kind >= 2, party = w.festa ? 1.4 : 1;
     return {
       car: Math.min(r * 0.45, people / 14 + r * 0.04, 350) | 0,
-      bus: Math.min(6, (s.pop / 350) | 0, (r / 20) | 0),
-      ped: Math.min(r * 0.6, s.pop / 7, 300) | 0,
+      bus: Math.min(6 + s.services[10] * 2, (s.pop / 350) + s.services[10] | 0, (r / 20) | 0),
+      ped: Math.min(r * 0.6, s.pop / 7 * party, 300) * (wet ? 0.25 : 1) | 0,
     };
   }
 
@@ -192,7 +194,9 @@ export class Traffic {
         // centro, ali decide a saída (dir) e segue até a borda.
         if (!a.stuck && !(a.kind !== 'ped' && this.blocked(a, lanes))) {
           const t0 = a.t;
-          a.t += a.speed * step;
+          // rua congestionada: o trânsito anda devagar
+          const jam = a.kind === 'ped' ? 0 : w.jam[a.y * N + a.x];
+          a.t += a.speed * step * (jam > 70 ? 70 / jam : 1);
           if (t0 < 0.5 && a.t >= 0.5) this.turn(a);
           if (a.stuck) a.t = 0.5;
           else if (a.t >= 1) {

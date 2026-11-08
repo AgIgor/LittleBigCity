@@ -1,8 +1,8 @@
 import { Application } from '../lib/pixi.min.mjs';
-import { N, SPEEDS, DAY_CYCLE_SECONDS, SVC_KEY, SVC_NAME } from './config.js';
+import { N, SPEEDS, DAY_CYCLE_SECONDS, SVC_KEY, SVC_NAME, SVC_RADIUS, MILESTONES, JAM } from './config.js';
 import { World } from './world.js';
 import { apply, fmt, TOOLS } from './actions.js';
-import { tickDay } from './sim.js';
+import { tickDay, floodTiles } from './sim.js';
 import { buildAtlas } from './atlas.js';
 import { Scene, ambientAt } from './render.js';
 import { Input } from './input.js';
@@ -62,18 +62,62 @@ const game = {
     this.prefs.dayNight = on;
     savePrefs(this.prefs);
   },
-  toggleValueMap() {
-    const on = this.scene.overlay !== 'value';
-    this.scene.setOverlay(on ? 'value' : null);
-    this.ui.setValueMap(on);
-    if (on) this.ui.toast('Mapa de valor: verde valorizado, vermelho desvalorizado. Praças, água e serviços valorizam; indústria desvaloriza.');
+  // Mapas de calor: 'value', 'pollution', 'traffic'; o mesmo de novo desliga
+  toggleOverlay(kind, force) {
+    const on = force ?? this.scene.overlay !== kind;
+    this.scene.setOverlay(on ? kind : null);
+    this.ui.setOverlay(on ? kind : null);
+    if (!on) return;
+    this.ui.toast({
+      value: 'Valor do terreno: verde valorizado, vermelho desvalorizado. Praças, água, serviços e marcos valorizam; poluição desvaloriza.',
+      pollution: 'Poluição: verde é ar limpo, roxo muito poluído. Indústria, usina e ruas paradas poluem; mata, praças e reciclagem limpam.',
+      traffic: 'Trânsito: ruas em vermelho estão congestionadas. Use avenidas ou pontos de ônibus.',
+    }[kind], false, 5000);
+  },
+
+  // Acontecimentos da simulação (no anfitrião vêm do tickDay; nos convidados, pela rede)
+  onEvent(ev) {
+    const w = this.world, ui = this.ui, now = performance.now();
+    const once = (key, ms) => { this.evT = this.evT || {}; if (now - (this.evT[key] || 0) < ms) return false; this.evT[key] = now; return true; };
+    switch (ev.type) {
+      case 'month': {
+        const net = ev.income - ev.cost;
+        ui.toast(`Mês fechado: ${net >= 0 ? '+' : '−'} R$ ${fmt(Math.abs(net))}`, net < 0);
+        if (!this.net.isClient) this.save();
+        ui.renderStats();
+        break;
+      }
+      case 'goal': {
+        const m = MILESTONES[ev.n];
+        ui.toast(`🏆 Meta alcançada: ${m.name} (${fmt(m.pop)} habitantes). Prêmio de R$ ${fmt(m.reward)}${m.unlock ? `. Liberou: ${SVC_NAME[m.unlock]} (em Serviços)` : ''}!`, false, 7000);
+        ui.renderStats();
+        break;
+      }
+      case 'fire':
+        if (once('fire', 8000)) ui.toast(w.cover.fire[ev.i] ? '🔥 Incêndio! Os bombeiros estão a caminho.' : '🔥 Incêndio! Sem bombeiros por perto o fogo pode se espalhar. Clique no alerta 🔥 para ver.', true, 5000);
+        break;
+      case 'burned':
+        if (once('burned', 8000)) ui.toast('Um prédio foi destruído pelo fogo.', true);
+        break;
+      case 'flood':
+        this.scene.showFlood(floodTiles(w, ev.x, ev.y));
+        ui.toast(`🌊 Enchente perto do rio! ${ev.hit} prédio${ev.hit === 1 ? '' : 's'} atingido${ev.hit === 1 ? '' : 's'}.`, true, 6000);
+        break;
+      case 'festa':
+        ui.toast(`🎉 ${['Festa junina', 'Show na praça', 'Feira de artesanato'][ev.kind || 0]}! Moradores e comércio animados por alguns dias.`, false, 5000);
+        break;
+      case 'weather':
+        if (ev.kind === 3) ui.toast('⛈ Tempestade chegando: risco de enchente perto do rio.', true, 4500);
+        else if (ev.kind === 2 && once('rain', 60000)) ui.toast('🌧 Começou a chover.');
+        break;
+    }
   },
 
   // Círculos de alcance: aparecem com a ferramenta do serviço escolhida ou
   // por alguns segundos depois de clicar num alerta
   updateCoverage() {
     const toolSvc = TOOLS[this.tool]?.svc;
-    const kind = toolSvc && toolSvc <= 5 ? toolSvc : this.coverageUntil > performance.now() ? this.coverageFlash : 0;
+    const kind = toolSvc && SVC_RADIUS[toolSvc] ? toolSvc : this.coverageUntil > performance.now() ? this.coverageFlash : 0;
     const sig = kind + ':' + this.world.stats.services.join(',');
     if (sig !== this.coverageSig) { this.coverageSig = sig; this.scene.showCoverage(kind); }
   },
@@ -82,8 +126,17 @@ const game = {
   // seguidos passam para a próxima região
   focusProblem(kind) {
     const w = this.world, C = 10, cells = new Map();
+    if (kind === 'festa') {
+      if (!w.festa) return;
+      const x = w.festa.i % N, y = (w.festa.i / N) | 0;
+      this.scene.setCamera((x - y) * 64, (x + y + 1) * 32, Math.max(this.scene.cam.zoom, 0.8));
+      return;
+    }
+    const test = kind === 'burning' ? i => w.fire[i] > 0
+      : kind === 'jam' ? i => w.road[i] && w.jam[i] > JAM
+        : i => w.lacks(i, kind);
     for (let i = 0; i < N * N; i++) {
-      if (!w.lacks(i, kind)) continue;
+      if (!test(i)) continue;
       const x = i % N, y = (i / N) | 0, key = ((y / C) | 0) * 100 + ((x / C) | 0);
       const c = cells.get(key) || { n: 0, sx: 0, sy: 0 };
       c.n++; c.sx += x; c.sy += y;
@@ -96,12 +149,21 @@ const game = {
     this.problemIdx[kind] = k;
     const c = list[k], x = c.sx / c.n, y = c.sy / c.n;
     this.scene.setCamera((x - y) * 64, (x + y + 1) * 32, Math.max(this.scene.cam.zoom, 0.6));
+    if (kind === 'burning') {
+      this.ui.toast(`Incêndio ${k + 1} de ${list.length}. Bombeiros por perto apagam o fogo; demolir os vizinhos impede que ele se espalhe.`, true);
+      return;
+    }
+    if (kind === 'jam') {
+      this.toggleOverlay('traffic', true);
+      this.ui.toast(`Congestionamento ${k + 1} de ${list.length}: ${c.n} trecho${c.n > 1 ? 's' : ''} de rua parado${c.n > 1 ? 's' : ''}. Troque por avenida (tecla 4) ou ponha pontos de ônibus.`);
+      return;
+    }
     const svc = SVC_KEY.indexOf(kind);
     this.coverageFlash = svc;
     this.coverageUntil = performance.now() + 6000;
     this.updateCoverage();
     const name = SVC_NAME[svc];
-    this.ui.toast(`Região ${k + 1} de ${list.length}: ${c.n} prédio${c.n > 1 ? 's' : ''} sem ${name.toLowerCase()} por perto. Escolha em Serviços (tecla 7).`);
+    this.ui.toast(`Região ${k + 1} de ${list.length}: ${c.n} prédio${c.n > 1 ? 's' : ''} sem ${name.toLowerCase()} por perto. Escolha em Serviços (tecla 8).`);
   },
 
   inspect({ x, y }) {
@@ -191,11 +253,8 @@ async function start() {
       while (game.acc >= per && steps < 8) {
         game.acc -= per; steps++;
         for (const ev of tickDay(game.world)) {
-          if (ev.type === 'month') {
-            const net = ev.income - ev.cost;
-            game.ui.toast(`Mês fechado: ${net >= 0 ? '+' : '−'} R$ ${fmt(Math.abs(net))}`, net < 0);
-            game.save();
-          }
+          game.onEvent(ev);
+          game.net.queueEvent(ev);
         }
       }
       if (steps && game.world.dirty.size) game.input.refresh();
@@ -203,9 +262,13 @@ async function start() {
 
     game.net.update(dt);
     game.scene.sync();
-    game.scene.applyAmbient(game.dayNight ? ambientAt(game.world.clock) : { tint: 0xffffff, lights: 0 });
+    const amb = game.dayNight ? ambientAt(game.world.clock) : { tint: 0xffffff, lights: 0 };
+    game.scene.applyAmbient(game.scene.weatherAmbient(amb, game.world.weather.kind));
     game.traffic.update(dt);
     game.scene.updateSmoke(dt, game.speed > 0);
+    game.scene.animateFire(t.lastTime / 1000, dt, game.speed > 0);
+    game.scene.updateWeather(dt, game.world.weather.kind, game.speed > 0);
+    game.scene.updateFlood(dt);
     if ((badgeT += dt) > 0.5) { badgeT = 0; game.scene.refreshBadges(); game.updateCoverage(); }
     game.scene.animateBadges(t.lastTime / 1000);
     game.scene.updateCamera();

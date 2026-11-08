@@ -4,7 +4,7 @@
 import { TOOLS, plan } from './actions.js';
 import { SVC_RADIUS, SVC_KEY } from './config.js';
 
-const TOOL_KEYS = { 1: 'inspect', 2: 'clear', 3: 'road', 4: 'zoneR', 5: 'zoneC', 6: 'zoneI', 7: 'services', 8: 'park', 9: 'demolish' };
+const TOOL_KEYS = { 1: 'inspect', 2: 'clear', 3: 'road', 4: 'avenue', 5: 'zoneR', 6: 'zoneC', 7: 'zoneI', 8: 'services', 9: 'park', 0: 'demolish' };
 
 export class Input {
   constructor(canvas, game) {

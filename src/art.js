@@ -987,7 +987,7 @@ function caixaDaguaServico() {
 }
 
 // Ícone flutuante de serviço faltando (âncora na ponta de baixo)
-const BADGE_COLOR = { power: '#f2c230', water: '#3d9be0', school: '#3fae5a', health: '#e04848', police: '#2e4a8a' };
+const BADGE_COLOR = { power: '#f2c230', water: '#3d9be0', school: '#3fae5a', health: '#e04848', police: '#2e4a8a', garbage: '#8a6a3a' };
 function badge(kind) {
   return mk(40, 48, 20, 46, x => {
     ellipse(x, 0, -1, 7, 2.5, 'rgba(0,0,0,.3)');
@@ -1010,6 +1010,13 @@ function badge(kind) {
       x.fillRect(8, -31, 1.5, 8);
     } else if (kind === 'health') {
       x.fillRect(-8, -30, 16, 6); x.fillRect(-3, -35, 6, 16);
+    } else if (kind === 'garbage') {
+      // lixeira
+      x.fillRect(-6, -32, 12, 14);
+      x.fillRect(-8, -35, 16, 3);
+      x.fillRect(-2, -38, 4, 3);
+      x.fillStyle = BADGE_COLOR.garbage;
+      for (const dx of [-3, 0, 3]) x.fillRect(dx - 0.6, -30, 1.2, 10);
     } else {
       // escudo com estrela
       x.beginPath(); x.moveTo(0, -37); x.lineTo(8, -34); x.quadraticCurveTo(8, -22, 0, -17); x.quadraticCurveTo(-8, -22, -8, -34); x.closePath(); x.fill();
@@ -1045,6 +1052,354 @@ function smokePuff() {
     g.addColorStop(1, 'rgba(255,255,255,0)');
     x.fillStyle = g;
     x.beginPath(); x.arc(0, 0, 22, 0, Math.PI * 2); x.fill();
+  });
+}
+
+// ======================================================================
+// Serviços novos, marcos da cidade, avenida, fogo, festa e chuva
+// ======================================================================
+function coletaLixo() {
+  return building(1700, x => {
+    lot(x, '#9c978a');
+    const wall = '#d8d0b8', h = 34;
+    const u0 = 0.1, v0 = 0.14, u1 = 0.66, v1 = 0.8;
+    groundShadow(x, u0, v0, u1, v1, h);
+    box(x, u0, v0, u1, v1, 0, h, wall, { top: false });
+    faceRect(x, 'R', u1, v0, v1, h - 8, h - 3, '#3a8a4a');
+    faceRect(x, 'L', v1, u0, u1, h - 8, h - 3, '#3a8a4a');
+    // portões da garagem
+    for (const [a, b] of [[0.16, 0.38], [0.42, 0.62]]) {
+      faceRect(x, 'L', v1, a, b, 0, 22, '#8a8478', 'rgba(0,0,0,.45)');
+      x.strokeStyle = 'rgba(0,0,0,.18)'; x.lineWidth = 1;
+      for (let z = 4; z < 22; z += 4) { x.beginPath(); x.moveTo(...P(a, v1, z)); x.lineTo(...P(b, v1, z)); x.stroke(); }
+    }
+    windows(x, 'R', u1, v0, v1, h * 0.4, 1, h * 0.5, 3, GLASS, GLINT);
+    flatRoof(x, u0, v0, u1, v1, h, '#b0aa98', 4);
+    // caminhão de lixo
+    box(x, 0.72, 0.5, 0.92, 0.66, 2, 16, '#2f8a4a');
+    box(x, 0.86, 0.5, 0.94, 0.66, 2, 12, '#e8e4d8');
+    faceRect(x, 'R', 0.94, 0.52, 0.64, 6, 11, GLASS);
+    // caçambas
+    for (const [u, col] of [[0.74, '#2f7a3a'], [0.84, '#2f7a3a']]) box(x, u, 0.84, u + 0.08, 0.94, 0, 9, col, { topCol: '#3a3a36' });
+  });
+}
+
+function reciclagem() {
+  return building(1800, x => {
+    lot(x, '#9aa080');
+    const wall = '#c8d4c0', h = 30;
+    const u0 = 0.1, v0 = 0.12, u1 = 0.62, v1 = 0.74;
+    groundShadow(x, u0, v0, u1, v1, h + 14);
+    box(x, u0, v0, u1, v1, 0, h, wall, { top: false });
+    faceRect(x, 'L', v1, 0.2, 0.46, 0, 22, '#5a6a58', 'rgba(0,0,0,.45)');
+    windows(x, 'R', u1, v0, v1, h * 0.45, 1, h * 0.5, 3, GLASS, GLINT);
+    gable(x, u0, v0, u1, v1, h, 14, 'u', '#3a8a5a', wall, 0.03);
+    // símbolo da reciclagem na fachada
+    const [sx, sy] = P(u1, (v0 + v1) / 2, h * 0.3);
+    circle(x, sx, sy - 2, 7, '#f0f0e8');
+    x.strokeStyle = '#2f8a4a'; x.lineWidth = 2;
+    x.beginPath(); for (let k = 0; k < 3; k++) { const a = -Math.PI / 2 + k * 2.1; x.lineTo(sx + Math.cos(a) * 4.5, sy - 2 + Math.sin(a) * 4.5); } x.closePath(); x.stroke();
+    // contêineres coloridos
+    [['#2e6fb0', 0.68], ['#c8423a', 0.76], ['#e8c040', 0.84], ['#3a8a4a', 0.92]].forEach(([col, v]) => box(x, 0.72, v - 0.06, 0.84, v + 0.01, 0, 11, col));
+    // fardos de papel
+    box(x, 0.14, 0.82, 0.26, 0.94, 0, 8, '#c8b890');
+    box(x, 0.3, 0.82, 0.42, 0.94, 0, 8, '#a8b8c8');
+  });
+}
+
+function bombeiros() {
+  return building(1900, x => {
+    lot(x, '#a8a49a');
+    const wall = '#b8483a', fh = 26;
+    const u0 = 0.12, v0 = 0.12, u1 = 0.72, v1 = 0.82;
+    groundShadow(x, u0, v0, u1, v1, 2 * fh + 30);
+    box(x, u0, v0, u1, v1, 0, 2 * fh, wall, { top: false });
+    // portões vermelhos
+    for (const [a, b] of [[0.16, 0.36], [0.4, 0.6]]) {
+      faceRect(x, 'L', v1, a, b, 0, 24, '#e8e4dc', 'rgba(0,0,0,.45)');
+      faceRect(x, 'L', v1, a + 0.02, b - 0.02, 2, 22, '#c83a2e');
+      x.strokeStyle = 'rgba(255,255,255,.35)'; x.lineWidth = 1;
+      for (let z = 6; z < 22; z += 5) { x.beginPath(); x.moveTo(...P(a + 0.02, v1, z)); x.lineTo(...P(b - 0.02, v1, z)); x.stroke(); }
+    }
+    windows(x, 'L', v1, u0, u1, fh, 1, fh, 3, GLASS, GLINT);
+    windows(x, 'R', u1, v0, v1, 0, 2, fh, 3, GLASS, GLINT);
+    faceRect(x, 'R', u1, v0, v1, 2 * fh - 7, 2 * fh - 2, '#f0e8d8');
+    flatRoof(x, u0, v0, u1, v1, 2 * fh, '#9a3a30', 4);
+    // torre de treino
+    box(x, 0.16, 0.16, 0.3, 0.3, 2 * fh, 2 * fh + 36, '#a8402f');
+    windows(x, 'R', 0.3, 0.16, 0.3, 2 * fh + 4, 1, 26, 1, GLASS);
+    box(x, 0.14, 0.14, 0.32, 0.32, 2 * fh + 36, 2 * fh + 40, '#6a2a22');
+    // caminhão
+    box(x, 0.76, 0.3, 0.94, 0.7, 2, 15, '#d8382c');
+    box(x, 0.76, 0.6, 0.94, 0.7, 15, 21, '#d8382c');
+    faceRect(x, 'R', 0.94, 0.61, 0.69, 15, 20, GLASS);
+    x.strokeStyle = '#e8e4d8'; x.lineWidth = 1.5;
+    x.beginPath(); x.moveTo(...P(0.85, 0.32, 17)); x.lineTo(...P(0.85, 0.58, 17)); x.stroke();
+    box(x, 0.83, 0.64, 0.87, 0.67, 21, 23, '#3a8ae8');
+  });
+}
+
+function pontoOnibus() {
+  return building(2000, x => {
+    poly(x, quad(0.02, 0.02, 0.98, 0.98), '#86a052', 'rgba(0,0,0,.12)');
+    poly(x, quad(0.5, 0.06, 0.94, 0.94), '#b8b2a4');
+    smallTree(x, mulberry32(2001), 0.22, 0.24);
+    smallTree(x, mulberry32(2002), 0.24, 0.78);
+    // abrigo
+    const u0 = 0.6, v0 = 0.2, u1 = 0.78, v1 = 0.8, h = 26;
+    poly(x, [P(u0, v0, 0), P(u0, v1, 0), P(u0, v1, h), P(u0, v0, h)], 'rgba(170,200,220,.45)', 'rgba(60,70,80,.6)');
+    for (const [u, v] of [[u0, v0], [u0, v1], [u1, v0], [u1, v1]]) {
+      x.strokeStyle = '#4a4e52'; x.lineWidth = 2;
+      x.beginPath(); x.moveTo(...P(u, v, 0)); x.lineTo(...P(u, v, h)); x.stroke();
+    }
+    box(x, u0, v0, u1, v1, 3, 6, '#6a4a32');               // banco
+    box(x, u0 - 0.02, v0 - 0.02, u1 + 0.02, v1 + 0.02, h, h + 3, '#3a7ac8');
+    // placa
+    x.strokeStyle = '#5a5e62'; x.lineWidth = 1.6;
+    x.beginPath(); x.moveTo(...P(0.88, 0.9, 0)); x.lineTo(...P(0.88, 0.9, 40)); x.stroke();
+    const [px, py] = P(0.88, 0.9, 40);
+    poly(x, [[px - 6, py - 4], [px + 6, py + 2], [px + 6, py + 12], [px - 6, py + 6]], '#2e6fb0', '#fff', 0.8);
+    x.fillStyle = '#fff'; x.fillRect(px - 2, py + 2, 4, 4);
+  });
+}
+
+function prefeitura() {
+  return building(2100, x => {
+    lot(x, '#c8c0aa');
+    poly(x, quad(0.04, 0.04, 0.96, 0.3), '#86a052');
+    const wall = '#eeeae0', fh = 28;
+    const u0 = 0.12, v0 = 0.32, u1 = 0.84, v1 = 0.82;
+    groundShadow(x, u0, v0, u1, v1, 2 * fh + 40);
+    box(x, u0, v0, u1, v1, 0, 2 * fh, wall, { top: false });
+    windows(x, 'R', u1, v0, v1, 0, 2, fh, 4, GLASS, GLINT);
+    windows(x, 'L', v1, u0, u0 + 0.2, 0, 2, fh, 1, GLASS, GLINT);
+    windows(x, 'L', v1, u1 - 0.2, u1, 0, 2, fh, 1, GLASS, GLINT);
+    // pórtico com colunas e frontão
+    const a0 = 0.32, a1 = 0.64, vc = v1 + 0.08;
+    box(x, a0, v1, a1, vc, 0, 4, '#d8d2c4');
+    for (let k = 0; k <= 4; k++) {
+      const u = a0 + 0.02 + (a1 - a0 - 0.04) * k / 4;
+      box(x, u - 0.012, vc - 0.03, u + 0.012, vc - 0.006, 4, 2 * fh - 4, '#f4f0e6', { left: 0.82, right: 0.95 });
+    }
+    box(x, a0, v1, a1, vc, 2 * fh - 4, 2 * fh, '#e8e2d4');
+    poly(x, [P(a0, vc, 2 * fh), P(a1, vc, 2 * fh), P((a0 + a1) / 2, vc, 2 * fh + 16)], '#f0ebe0', EDGE);
+    flatRoof(x, u0, v0, u1, v1, 2 * fh, '#d8d2c4', 4);
+    // cúpula
+    const [cx, cy] = P(0.48, 0.57, 2 * fh + 4);
+    x.fillStyle = '#c8c2b4'; x.fillRect(cx - 16, cy - 12, 32, 12);
+    ellipse(x, cx, cy, 16, 6, '#b8b2a4');
+    x.beginPath(); x.ellipse(cx, cy - 12, 16, 20, 0, Math.PI, 0); x.fillStyle = '#5a8a9a'; x.fill();
+    x.strokeStyle = 'rgba(0,0,0,.3)'; x.lineWidth = 1; x.stroke();
+    x.fillStyle = '#e8d070'; x.fillRect(cx - 1, cy - 40, 2, 9);
+    flag(x, 0.2, 0.12, 0, '#2a8a3a');
+    flag(x, 0.8, 0.12, 0, '#2e5f9a');
+  });
+}
+
+function estadio() {
+  return building(2200, x => {
+    lot(x, '#a8a49a', 0.01);
+    const [cx, cy] = P(0.5, 0.5);
+    const RX = 66, RY = 33, H = 30;
+    // parede externa
+    x.beginPath();
+    x.ellipse(cx, cy, RX, RY, 0, 0, Math.PI);
+    x.lineTo(cx - RX, cy - H);
+    x.ellipse(cx, cy - H, RX, RY, 0, Math.PI, 0, true);
+    x.closePath();
+    x.fillStyle = '#c8c4bc'; x.fill();
+    x.strokeStyle = EDGE; x.stroke();
+    x.strokeStyle = 'rgba(0,0,0,.18)';
+    for (let k = 1; k < 12; k++) {
+      const a = (k / 12) * Math.PI, px = cx + Math.cos(a) * RX, py = cy + Math.sin(a) * RY;
+      x.beginPath(); x.moveTo(px, py); x.lineTo(px, py - H); x.stroke();
+    }
+    // arquibancadas em degraus de cor
+    const rows = ['#d8d4cc', '#c8423a', '#e8e4dc', '#2e6fb0', '#e8e4dc', '#c8423a'];
+    rows.forEach((col, k) => {
+      const t = k / rows.length;
+      ellipse(x, cx, cy - H + t * 14, RX * (1 - t * 0.32), RY * (1 - t * 0.32), col);
+    });
+    // campo
+    ellipse(x, cx, cy - H + 14, RX * 0.62, RY * 0.62, '#3e8a3a');
+    x.save();
+    x.beginPath(); x.ellipse(cx, cy - H + 14, RX * 0.62, RY * 0.62, 0, 0, Math.PI * 2); x.clip();
+    for (let k = -4; k <= 4; k += 2) {
+      x.fillStyle = 'rgba(255,255,255,.06)';
+      x.beginPath(); x.moveTo(cx + k * 8, cy - H - 10); x.lineTo(cx + k * 8 + 8, cy - H - 10); x.lineTo(cx + k * 8 - 12, cy - H + 40); x.lineTo(cx + k * 8 - 20, cy - H + 40); x.fill();
+    }
+    x.restore();
+    x.strokeStyle = 'rgba(255,255,255,.85)'; x.lineWidth = 1;
+    const fy = cy - H + 14;
+    x.beginPath(); x.moveTo(cx - 26, fy - 7); x.lineTo(cx + 26, fy + 7); x.stroke();
+    x.beginPath(); x.ellipse(cx, fy, 8, 4, 0, 0, Math.PI * 2); x.stroke();
+    // torres de iluminação
+    for (const [u, v] of [[0.08, 0.08], [0.92, 0.08], [0.08, 0.92], [0.92, 0.92]]) {
+      const [tx, ty] = P(u, v);
+      x.strokeStyle = '#6a6e72'; x.lineWidth = 2;
+      x.beginPath(); x.moveTo(tx, ty); x.lineTo(tx, ty - 70); x.stroke();
+      x.fillStyle = LIT ? '#fff8d8' : '#8a8e92';
+      x.fillRect(tx - 6, ty - 76, 12, 7);
+    }
+  });
+}
+
+function torre() {
+  return building(2300, x => {
+    lot(x, '#b8b4aa');
+    poly(x, quad(0.06, 0.06, 0.94, 0.94), '#86a052');
+    poly(x, quad(0.3, 0.3, 0.7, 0.7), '#c8c0aa');
+    const top = 210;
+    groundShadow(x, 0.4, 0.4, 0.6, 0.6, top);
+    box(x, 0.32, 0.32, 0.68, 0.68, 0, 16, '#d8d2c4');
+    windows(x, 'R', 0.68, 0.32, 0.68, 0, 1, 16, 2, GLASS, GLINT);
+    windows(x, 'L', 0.68, 0.32, 0.68, 0, 1, 16, 2, GLASS, GLINT);
+    // fuste afinando
+    poly(x, [P(0.58, 0.42, 16), P(0.58, 0.58, 16), P(0.54, 0.54, top), P(0.54, 0.46, top)], '#d0ccc4', EDGE);
+    poly(x, [P(0.42, 0.58, 16), P(0.58, 0.58, 16), P(0.54, 0.54, top), P(0.46, 0.54, top)], '#a8a49c', EDGE);
+    x.strokeStyle = 'rgba(0,0,0,.12)'; x.lineWidth = 1;
+    for (let z = 40; z < top; z += 24) { x.beginPath(); x.moveTo(...P(0.42, 0.58, z)); x.lineTo(...P(0.58, 0.58, z)); x.lineTo(...P(0.58, 0.42, z)); x.stroke(); }
+    // mirante envidraçado
+    box(x, 0.36, 0.36, 0.64, 0.64, top, top + 6, '#c8c4bc');
+    box(x, 0.37, 0.37, 0.63, 0.63, top + 6, top + 24, '#41627a', { top: false, right: 1.1, left: 0.8 });
+    windows(x, 'R', 0.63, 0.37, 0.63, top + 6, 1, 18, 4, GLASS);
+    windows(x, 'L', 0.63, 0.37, 0.63, top + 6, 1, 18, 4, GLASS);
+    box(x, 0.35, 0.35, 0.65, 0.65, top + 24, top + 30, '#d8d2c4');
+    x.strokeStyle = '#c8c8c8'; x.lineWidth = 1.6;
+    x.beginPath(); x.moveTo(...P(0.5, 0.5, top + 30)); x.lineTo(...P(0.5, 0.5, top + 64)); x.stroke();
+    circle(x, ...P(0.5, 0.5, top + 64), 2.2, LIT ? '#ff5040' : '#c83a2e');
+  });
+}
+
+// Avenida: duas faixas por sentido e canteiro central nos trechos retos
+function aveTile(mask) {
+  return mk(GROUND_W, GROUND_H, HW + 2, 2, x => {
+    x.save();
+    clipDiamond(x, 0.018);
+    onGround(x, g => {
+      const e = 0.03;
+      const arms = (a, b, col) => {
+        g.fillStyle = col;
+        g.fillRect(a, a, b - a, b - a);
+        if (mask & 1) g.fillRect(a, -e, b - a, 0.5 + e);
+        if (mask & 2) g.fillRect(0.5, a, 0.5 + e, b - a);
+        if (mask & 4) g.fillRect(a, 0.5, b - a, 0.5 + e);
+        if (mask & 8) g.fillRect(-e, a, 0.5 + e, b - a);
+      };
+      arms(0.02, 0.98, '#a39d91');
+      arms(0.05, 0.95, '#8a857a');
+      arms(0.08, 0.92, '#4f4d48');
+      const r = mulberry32(60 + mask);
+      for (let k = 0; k < 120; k++) {
+        g.fillStyle = r() < 0.5 ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.08)';
+        g.fillRect(0.08 + r() * 0.84, 0.08 + r() * 0.84, 0.015, 0.015);
+      }
+      const straightY = mask === 5 || mask === 1 || mask === 4, straightX = mask === 10 || mask === 2 || mask === 8;
+      g.fillStyle = 'rgba(240,240,230,.75)';
+      const dashes = (horizontal, at) => {
+        for (let t = 0.05; t < 1; t += 0.3) {
+          if (horizontal) g.fillRect(t, at - 0.01, 0.14, 0.02);
+          else g.fillRect(at - 0.01, t, 0.02, 0.14);
+        }
+      };
+      if (straightY) {
+        g.fillStyle = '#c8c0a8'; g.fillRect(0.45, -e, 0.1, 1 + 2 * e);
+        g.fillStyle = '#5f9a3e'; g.fillRect(0.465, -e, 0.07, 1 + 2 * e);
+        g.fillStyle = 'rgba(240,240,230,.75)'; dashes(false, 0.27); dashes(false, 0.73);
+      } else if (straightX) {
+        g.fillStyle = '#c8c0a8'; g.fillRect(-e, 0.45, 1 + 2 * e, 0.1);
+        g.fillStyle = '#5f9a3e'; g.fillRect(-e, 0.465, 1 + 2 * e, 0.07);
+        g.fillStyle = 'rgba(240,240,230,.75)'; dashes(true, 0.27); dashes(true, 0.73);
+      } else {
+        // cruzamento: faixa de pedestres nas bordas
+        g.fillStyle = 'rgba(240,240,230,.7)';
+        for (let t = 0.14; t < 0.86; t += 0.08) {
+          if (mask & 1) g.fillRect(t, 0.09, 0.04, 0.07);
+          if (mask & 4) g.fillRect(t, 0.84, 0.04, 0.07);
+          if (mask & 8) g.fillRect(0.09, t, 0.07, 0.04);
+          if (mask & 2) g.fillRect(0.84, t, 0.07, 0.04);
+        }
+      }
+    });
+    x.restore();
+    if (mask === 5 || mask === 10) {
+      // arbusto no canteiro
+      const [bx, by] = P(0.5, 0.5);
+      ellipse(x, bx, by - 3, 6, 4, '#4a7a32');
+      ellipse(x, bx - 1, by - 5, 3.5, 2.5, '#6a9a42');
+    }
+  });
+}
+
+// Chamas por cima do prédio: altura conforme o nível; 3 quadros de animação
+const FIRE_Z = [0, 34, 64, 150];
+function fireTile(level, frame) {
+  return mk(OBJ_W, BLD_H, OBJ_AX, BLD_AY, x => {
+    const r = mulberry32(2400 + level * 10 + frame);
+    const z = FIRE_Z[level];
+    const spots = [[0.35, 0.4], [0.6, 0.35], [0.5, 0.65], [0.7, 0.62], [0.3, 0.7]];
+    for (const [u, v] of spots) {
+      const [fx, fy] = P(u, v, z * (0.6 + r() * 0.4));
+      const h = 16 + r() * 14 + frame * 3, w = 7 + r() * 4;
+      for (const [col, k] of [['rgba(200,40,20,.85)', 1], ['rgba(250,130,30,.9)', 0.72], ['rgba(255,226,120,.95)', 0.42]]) {
+        x.beginPath();
+        x.moveTo(fx - w * k, fy);
+        x.quadraticCurveTo(fx - w * k * 0.8, fy - h * k * 0.6, fx + (r() - 0.5) * 4, fy - h * k);
+        x.quadraticCurveTo(fx + w * k * 0.8, fy - h * k * 0.6, fx + w * k, fy);
+        x.closePath();
+        x.fillStyle = col; x.fill();
+      }
+    }
+    // janelas com brilho de fogo
+    const [gx, gy] = P(0.5, 0.5, z * 0.5);
+    const g = x.createRadialGradient(gx, gy, 2, gx, gy, 46);
+    g.addColorStop(0, 'rgba(255,140,40,.35)'); g.addColorStop(1, 'rgba(255,140,40,0)');
+    x.fillStyle = g; x.beginPath(); x.arc(gx, gy, 46, 0, Math.PI * 2); x.fill();
+  });
+}
+
+// Festa na praça: bandeirinhas e varal de lâmpadas
+function festaTile(kind) {
+  return mk(OBJ_W, BLD_H, OBJ_AX, BLD_AY, x => {
+    const r = mulberry32(2500 + kind);
+    const cols = [['#e8423a', '#f2c94c', '#3a8ae8', '#3fae5a', '#f2994a'], ['#e07aa8', '#a86ad8', '#f2f0ea'], ['#2f8a4a', '#f2c94c', '#2e5f9a']][kind];
+    const posts = [[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]];
+    for (const [u, v] of posts) {
+      x.strokeStyle = '#6a4a32'; x.lineWidth = 2;
+      x.beginPath(); x.moveTo(...P(u, v, 0)); x.lineTo(...P(u, v, 44)); x.stroke();
+    }
+    const lines = [[posts[0], posts[2]], [posts[1], posts[3]], [posts[0], posts[1]], [posts[3], posts[2]]];
+    for (const [a, b] of lines) {
+      const [ax, ay] = P(a[0], a[1], 44), [bx, by] = P(b[0], b[1], 44);
+      const sag = 14;
+      x.strokeStyle = 'rgba(40,30,20,.7)'; x.lineWidth = 0.8;
+      x.beginPath(); x.moveTo(ax, ay); x.quadraticCurveTo((ax + bx) / 2, (ay + by) / 2 + sag * 2, bx, by); x.stroke();
+      for (let t = 0.06; t < 0.96; t += 0.08) {
+        const px = (1 - t) ** 2 * ax + 2 * (1 - t) * t * (ax + bx) / 2 + t * t * bx;
+        const py = (1 - t) ** 2 * ay + 2 * (1 - t) * t * ((ay + by) / 2 + sag * 2) + t * t * by;
+        if (LIT) circle(x, px, py + 1, 2, pick(r, ['#fff2b0', '#ffd27a', '#ffb0a0', '#b0e0ff']));
+        else poly(x, [[px - 3, py], [px + 3, py], [px, py + 6]], pick(r, cols));
+      }
+    }
+    // barraquinhas
+    for (const [u, v, col] of [[0.25, 0.3, cols[0]], [0.72, 0.68, cols[1]]]) {
+      box(x, u - 0.08, v - 0.06, u + 0.08, v + 0.06, 0, 12, '#c8a878');
+      box(x, u - 0.1, v - 0.08, u + 0.1, v + 0.08, 12, 15, col);
+      if (LIT) faceRect(x, 'R', u + 0.08, v - 0.05, v + 0.05, 2, 10, '#ffd88a');
+    }
+    // fogueira no centro
+    const [fx, fy] = P(0.5, 0.5);
+    for (let k = 0; k < 4; k++) { x.strokeStyle = '#5a3a22'; x.lineWidth = 2.5; x.beginPath(); x.moveTo(fx - 8 + k * 5, fy + 3); x.lineTo(fx - 2 + k, fy - 10); x.stroke(); }
+    ellipse(x, fx, fy - 4, 5, 7, LIT ? '#ffe080' : '#f2994a');
+  });
+}
+
+function rainDrop() {
+  return mk(6, 30, 3, 0, x => {
+    const g = x.createLinearGradient(0, 0, 0, 30);
+    g.addColorStop(0, 'rgba(200,220,240,0)'); g.addColorStop(1, 'rgba(220,235,250,.85)');
+    x.strokeStyle = g; x.lineWidth = 1.4;
+    x.beginPath(); x.moveTo(3, 0); x.lineTo(1, 30); x.stroke();
   });
 }
 
@@ -1138,7 +1493,18 @@ export function allSprites() {
   list.svc1 = usina;
   list.svc2 = caixaDaguaServico;
   list.smoke = smokePuff;
-  for (const k of ['power', 'water', 'school', 'health', 'police']) list['badge_' + k] = () => badge(k);
+  for (const k of ['power', 'water', 'school', 'health', 'police', 'garbage']) list['badge_' + k] = () => badge(k);
+  list.svc7 = coletaLixo;
+  list.svc8 = reciclagem;
+  list.svc9 = bombeiros;
+  list.svc10 = pontoOnibus;
+  list.svc11 = prefeitura;
+  list.svc12 = estadio;
+  list.svc13 = torre;
+  for (let m = 0; m < 16; m++) list['ave' + m] = () => aveTile(m);
+  for (let lv = 1; lv <= 3; lv++) for (let f = 0; f < 3; f++) list[`fire${lv}_${f}`] = () => fireTile(lv, f);
+  for (let k = 0; k < 3; k++) list['festa' + k] = () => festaTile(k);
+  list.rain = rainDrop;
   list.svc3 = escola;
   list.svc4 = postoSaude;
   list.svc5 = delegacia;

@@ -29,14 +29,49 @@ export const JOBS_C = [0, 6, 18, 50];
 export const JOBS_I = [0, 10, 28, 70];
 
 // Serviços (valor guardado na camada svc de cada tile)
-export const SVC_POWER = 1, SVC_WATER = 2, SVC_SCHOOL = 3, SVC_HEALTH = 4, SVC_POLICE = 5, SVC_PARK = 6;
-export const SVC_KEY = ['', 'power', 'water', 'school', 'health', 'police', 'park'];
-export const SVC_NAME = ['', 'Usina elétrica', "Caixa d'água", 'Escola', 'Posto de saúde', 'Delegacia', 'Praça'];
-export const SVC_RADIUS = [0, 16, 12, 12, 14, 12, 0];
-export const SVC_UPKEEP = [0, 150, 70, 120, 150, 110, 3];   // por mês (praça: por tile)
-export const SVC_COLOR = [0, 0xffd84a, 0x5ab8ff, 0x5fd06a, 0xff6a6a, 0x7a9cff, 0x8fd06a];
-// Serviços com área de cobertura (os que viram camadas de cobertura no mundo)
-export const COVER_KINDS = ['power', 'water', 'school', 'health', 'police'];
+export const SVC_POWER = 1, SVC_WATER = 2, SVC_SCHOOL = 3, SVC_HEALTH = 4, SVC_POLICE = 5, SVC_PARK = 6,
+  SVC_GARBAGE = 7, SVC_RECYCLE = 8, SVC_FIRE = 9, SVC_BUS = 10, SVC_HALL = 11, SVC_STADIUM = 12, SVC_TOWER = 13;
+export const SVC_KEY = ['', 'power', 'water', 'school', 'health', 'police', 'park',
+  'garbage', 'recycle', 'fire', 'bus', 'hall', 'stadium', 'tower'];
+export const SVC_NAME = ['', 'Usina elétrica', "Caixa d'água", 'Escola', 'Posto de saúde', 'Delegacia', 'Praça',
+  'Coleta de lixo', 'Reciclagem', 'Bombeiros', 'Ponto de ônibus', 'Prefeitura', 'Estádio', 'Torre panorâmica'];
+export const SVC_RADIUS = [0, 16, 12, 12, 14, 12, 0, 14, 12, 13, 5, 0, 0, 0];
+export const SVC_UPKEEP = [0, 150, 70, 120, 150, 110, 3, 90, 120, 130, 12, 200, 350, 250];   // por mês (praça: por tile)
+export const SVC_COLOR = [0, 0xffd84a, 0x5ab8ff, 0x5fd06a, 0xff6a6a, 0x7a9cff, 0x8fd06a,
+  0xc89a5a, 0x4ac8a0, 0xff8a3a, 0xe8d050, 0xd8c8ff, 0xffffff, 0xffb0e0];
+export const SVC_COUNT = SVC_KEY.length;
+// Serviços exigidos pelos prédios (viram alertas e ícones quando faltam)
+export const COVER_KINDS = ['power', 'water', 'school', 'health', 'police', 'garbage'];
+// Todos os serviços com área de alcance
+export const RANGE_KINDS = [...COVER_KINDS, 'recycle', 'fire', 'bus'];
+// Marcos da cidade: valorizam uma área grande e animam a demanda
+export const LANDMARKS = {
+  [SVC_HALL]: { value: 22, r: 10, dem: { r: 0.05, c: 0.05, i: 0.05 } },
+  [SVC_STADIUM]: { value: 18, r: 9, dem: { c: 0.15 } },
+  [SVC_TOWER]: { value: 30, r: 12, dem: { r: 0.15 } },
+};
+
+// Metas de população: dão um prêmio e liberam os marcos
+export const MILESTONES = [
+  { pop: 50, name: 'Vilarejo', reward: 1000 },
+  { pop: 250, name: 'Vila', reward: 2500 },
+  { pop: 600, name: 'Povoado', reward: 4000, unlock: SVC_HALL },
+  { pop: 1200, name: 'Cidade pequena', reward: 6000 },
+  { pop: 2500, name: 'Cidade', reward: 10000, unlock: SVC_STADIUM },
+  { pop: 5000, name: 'Cidade grande', reward: 15000, unlock: SVC_TOWER },
+  { pop: 10000, name: 'Metrópole', reward: 30000 },
+];
+
+// Trânsito: capacidade de cada tipo de rua (1 = rua, 2 = avenida) e o
+// congestionamento (%) a partir do qual os prédios em volta sofrem
+export const ROAD_CAP = [0, 90, 240];
+export const JAM = 120;
+// Poluição a partir da qual residências não sobem para o nível 3
+export const POLLUTION_L3 = 70;
+
+// Clima
+export const SUN = 0, CLOUDY = 1, RAIN = 2, STORM = 3;
+export const WEATHER_NAME = ['Ensolarado', 'Nublado', 'Chuva', 'Tempestade'];
 
 // Custos em R$
 export const COST = {
@@ -48,6 +83,15 @@ export const COST = {
   health: 3000,
   police: 2000,
   park: 60,
+  garbage: 1800,
+  recycle: 3500,
+  fire: 2500,
+  bus: 150,
+  hall: 8000,
+  stadium: 15000,
+  tower: 20000,
+  avenue: 30,
+  avenueUp: 20,              // transformar rua em avenida
   demolishSvc: 100,
   zone: 3,
   clear: [0, 6, 2, 15],      // por tipo de objeto

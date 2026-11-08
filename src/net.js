@@ -23,6 +23,7 @@ export class Net {
     this.sendT = 0;
     this.stateT = 0;
     this.lastCur = null;
+    this.events = [];          // anfitrião: eventos do dia (fogo, enchente, festa...) para repassar
   }
 
   get active() { return !!this.role; }
@@ -103,18 +104,28 @@ export class Net {
     this.changed();
   }
 
+  // Eventos da simulação que os convidados também precisam ver
+  queueEvent(ev) { if (this.role === 'host' && this.conns.size) this.events.push(ev); }
+
   // Chamado a cada quadro pelo anfitrião: envia o que mudou
   update(dt) {
-    if (this.role !== 'host' || !this.conns.size) { this.game.world.changed.clear(); return; }
+    if (this.role !== 'host' || !this.conns.size) { this.game.world.changed.clear(); this.events = []; return; }
     const w = this.game.world;
     this.sendT += dt; this.stateT += dt;
     if (this.sendT < 0.1) return;
     this.sendT = 0;
     const tiles = w.changed.size ? [...w.changed].map(i => w.tileState(i)) : null;
     w.changed.clear();
-    if (tiles || this.stateT > 0.5) {
+    const events = this.events.length ? this.events : null;
+    this.events = [];
+    if (tiles || events || this.stateT > 0.5) {
       this.stateT = 0;
-      this.broadcast({ t: 'delta', tiles, money: w.money, day: w.day, demand: w.demand, speed: this.game.speed, tax: w.tax, clock: w.clock });
+      const h = w.history;
+      this.broadcast({
+        t: 'delta', tiles, money: w.money, day: w.day, demand: w.demand, speed: this.game.speed, tax: w.tax, clock: w.clock,
+        goals: w.goals, disasters: w.disasters, weather: w.weather, festa: w.festa, counters: w.counters,
+        histLen: h.length, histLast: h[h.length - 1], events,
+      });
     }
   }
 
@@ -171,14 +182,21 @@ export class Net {
           }
           if (roads.length) w.roadsChangedAt(roads);
           if (svc) w.recomputeServices();
-          // o anfitrião recalcula o valor do terreno a cada 5 dias; o convidado acompanha
-          if (svc || ((msg.day / 5) | 0) !== this.valueStep) { this.valueStep = (msg.day / 5) | 0; w.recomputeValue(); }
+          // o anfitrião recalcula trânsito, poluição e valor a cada 5 dias; o convidado acompanha
+          if (svc || roads.length || ((msg.day / 5) | 0) !== this.valueStep) { this.valueStep = (msg.day / 5) | 0; w.recomputeDerived(); }
           w.recomputeStats();
           g.input?.refresh();
         }
         w.money = msg.money; w.day = msg.day; w.demand = msg.demand;
         if (msg.tax) w.tax = msg.tax;
         if (msg.clock != null) w.clock = msg.clock;
+        if (msg.goals != null) w.goals = msg.goals;
+        if (msg.disasters != null) w.disasters = msg.disasters;
+        if (msg.weather) w.weather = msg.weather;
+        w.festa = msg.festa || null;
+        if (msg.counters) w.counters = msg.counters;
+        if (msg.histLast && msg.histLen > w.history.length) w.history.push(msg.histLast);
+        for (const ev of msg.events || []) g.onEvent(ev);
         w.changed.clear();
         if (msg.speed !== g.speed) g.setSpeed(msg.speed, true);
         break;
