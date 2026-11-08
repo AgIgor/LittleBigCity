@@ -728,6 +728,62 @@ export const BUILDINGS = {
   3: { 1: [0, 1].map(v => () => galpao(v)), 2: [0, 1].map(v => () => fabrica(v)), 3: [0].map(v => () => industria(v)) },
 };
 
+// ======================================================================
+// Veículos e pedestres (âncora no vértice de cima do tile; o centro do
+// veículo fica no centro do tile). Direção: 0 = +x, 1 = +y, 2 = -x, 3 = -y
+// ======================================================================
+const VEH_W = 84, VEH_H = 64, VEH_AY = 8;
+export const CAR_COLORS = ['#b8423a', '#2e5f9a', '#e6e2d8', '#3a3a3c', '#d8b84a', '#4a7a4a', '#8a8f96', '#7a3a6a'];
+
+function vehicle(col, d, bus) {
+  return mk(VEH_W, VEH_H, VEH_W / 2, VEH_AY, x => {
+    const alongU = d % 2 === 0, fwd = d < 2 ? 1 : -1;
+    const L = bus ? 0.34 : 0.19, W = bus ? 0.105 : 0.085, c = 0.5;
+    // retângulo em coordenadas (ao longo, de lado) -> (u0, v0, u1, v1)
+    const rect = (a0, a1, b0, b1) => alongU ? [c + a0, c + b0, c + a1, c + b1] : [c + b0, c + a0, c + b1, c + a1];
+    const [u0, v0, u1, v1] = rect(-L, L, -W, W);
+    poly(x, quad(u0 + 0.02, v0 + 0.04, u1 + 0.03, v1 + 0.04), 'rgba(10,10,5,.3)');
+    box(x, u0 + 0.015, v0 + 0.015, u1 - 0.015, v1 - 0.015, 0, 3, '#1e1e1e');
+    const top = bus ? 18 : 7.5;
+    box(x, u0, v0, u1, v1, 2.5, top, col);
+    // lado visível: com o carro ao longo de u o lado é a face L, ao longo de v é a face R
+    const side = alongU ? ['L', v1, u0, u1] : ['R', u1, v0, v1];
+    if (bus) {
+      faceRect(x, side[0], side[1], side[2] + 0.03, side[3] - 0.03, 9, 14.5, '#2c3a46', 'rgba(255,255,255,.25)');
+      faceRect(x, side[0], side[1], side[2] + 0.03, side[3] - 0.03, 5, 6.5, '#2e5f9a');
+    } else {
+      const [a0, a1] = fwd > 0 ? [-0.62 * L, 0.28 * L] : [-0.28 * L, 0.62 * L];
+      const [cu0, cv0, cu1, cv1] = rect(a0, a1, -W + 0.015, W - 0.015);
+      box(x, cu0, cv0, cu1, cv1, top, top + 5.5, '#2c3640', { topCol: shade(col, 1.08) });
+    }
+    // faróis (frente) ou lanternas (trás) na ponta que aparece
+    const frontVisible = fwd > 0;
+    const light = frontVisible ? '#fff6c8' : '#e03a2a';
+    const endFace = alongU ? ['R', u1, v0, v1] : ['L', v1, u0, u1];
+    faceRect(x, endFace[0], endFace[1], endFace[2] + 0.012, endFace[2] + 0.04, 4, 6.5, light);
+    faceRect(x, endFace[0], endFace[1], endFace[3] - 0.04, endFace[3] - 0.012, 4, 6.5, light);
+  });
+}
+
+const SKIN = ['#f0c8a0', '#d8a878', '#b07a50', '#8a5a38', '#5e3c26'];
+const SHIRTS = ['#c8423a', '#2e6fb0', '#e8e2d0', '#3a7a4a', '#d8a02a', '#7a4a9a', '#3a3a3c', '#e07aa0'];
+
+function person(k, frame) {
+  return mk(18, 34, 9, 30, x => {
+    const r = mulberry32(3000 + k);
+    ellipse(x, 1.5, 0.5, 4.5, 1.8, 'rgba(0,0,0,.3)');
+    const s = frame ? 2.2 : -2.2;
+    x.strokeStyle = pick(r, ['#2e2a28', '#3a4a6a', '#5a4a3a']); x.lineWidth = 2.2;
+    x.beginPath(); x.moveTo(-1, -8); x.lineTo(-1 + s, 0); x.moveTo(1, -8); x.lineTo(1 - s, 0); x.stroke();
+    x.fillStyle = SHIRTS[k % SHIRTS.length];
+    x.beginPath(); x.roundRect(-3.2, -16, 6.4, 9, 2); x.fill();
+    x.strokeStyle = 'rgba(0,0,0,.35)'; x.lineWidth = 0.8; x.stroke();
+    circle(x, 0, -19, 2.8, pick(r, SKIN));
+    if (r() < 0.5) { x.fillStyle = pick(r, ['#2a1e14', '#5a3a1e', '#c8a060', '#1a1a1a']); x.beginPath(); x.arc(0, -19.6, 2.9, Math.PI, 0); x.fill(); }
+  });
+}
+export const PED_VARIANTS = 8;
+
 // Lista completa de sprites a gerar: chave -> função
 export function allSprites() {
   const list = {};
@@ -744,5 +800,8 @@ export function allSprites() {
   for (const z in BUILDINGS) for (const lv in BUILDINGS[z]) BUILDINGS[z][lv].forEach((fn, k) => { list[`b${z}${lv}_${k}`] = fn; });
   list.obra0 = () => obra(0);
   list.obra1 = () => obra(1);
+  CAR_COLORS.forEach((col, k) => { for (let d = 0; d < 4; d++) list[`car${k}_${d}`] = () => vehicle(col, d); });
+  for (let d = 0; d < 4; d++) list['bus_' + d] = () => vehicle('#d9a92a', d, true);
+  for (let k = 0; k < PED_VARIANTS; k++) for (let f = 0; f < 2; f++) list[`ped${k}_${f}`] = () => person(k, f);
   return list;
 }

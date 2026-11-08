@@ -8,6 +8,7 @@ import { Scene } from './render.js';
 import { Input } from './input.js';
 import { UI } from './ui.js';
 import { Net } from './net.js';
+import { Traffic } from './traffic.js';
 
 const SAVE_KEY = 'littlebigcity-save-v1';
 
@@ -67,6 +68,7 @@ const game = {
   useWorld(w) {
     this.world = w;
     this.scene.build(w);
+    this.traffic?.reset();
     this.focusStart();
     this.ui.hideInfo();
     this.ui.update();
@@ -100,6 +102,7 @@ async function start() {
   game.scene = new Scene(app, atlas);
   game.ui = new UI(game);
   game.net = new Net(game);
+  game.traffic = new Traffic(game);
 
   const saved = loadSave();
   if (saved) game.useWorld(saved);
@@ -136,6 +139,7 @@ async function start() {
 
     game.net.update(dt);
     game.scene.sync();
+    game.traffic.update(dt);
     game.scene.updateCamera();
     if ((hudT += dt) > 0.15) { hudT = 0; game.ui.update(); }
   });

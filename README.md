@@ -28,6 +28,7 @@ Teclado: `1`–`7` ferramentas, `WASD`/setas movem, `+`/`-` zoom, `espaço` paus
 - Prédios sobem de nível (casa → sobrado → prédio) quando a cidade passa de 120 e 600 habitantes.
 - Impostos entram todo fim de mês; as ruas custam manutenção.
 - O jogo salva sozinho no navegador a cada mês.
+- Carros, ônibus e pedestres circulam pelas ruas conforme a população e os empregos. Os carros fazem fila na mesma faixa e todos param quando o jogo pausa.
 
 ## Jogar com amigos
 
@@ -55,6 +56,7 @@ src/render.js           cena: camadas, câmera, recorte da tela
 src/input.js            mouse, toque e teclado
 src/ui.js               barra superior, ferramentas, painéis
 src/net.js              multiplayer: salas, ações dos convidados, envio de mudanças
+src/traffic.js          carros, ônibus e pedestres (só visual, não vai pela rede)
 ```
 
 Toda mudança no mapa passa por `actions.apply()`. No multiplayer, o convidado manda a ação ao anfitrião, que aplica e devolve só os tiles alterados (`world.changed`).
