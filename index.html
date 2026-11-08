@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>LittleBigCity</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game"></div>
+
+  <header id="top">
+    <div class="brand">Little<b>Big</b>City</div>
+    <div class="stat" title="Dinheiro em caixa"><small>Caixa</small><span id="money">R$ 0</span></div>
+    <div class="stat" title="População"><small>População</small><span id="pop">0</span></div>
+    <div class="stat hide-sm" title="Empregos no comércio e na indústria"><small>Empregos</small><span id="jobs">0</span></div>
+    <div class="stat" title="Data"><small>Data</small><span id="date">1 Jan · Ano 1</span></div>
+    <div class="rci" title="Demanda: Residencial, Comercial, Industrial">
+      <div><i id="dem-r" class="r"></i><em>R</em></div>
+      <div><i id="dem-c" class="c"></i><em>C</em></div>
+      <div><i id="dem-i" class="i"></i><em>I</em></div>
+    </div>
+    <div class="speeds">
+      <button data-speed="0" title="Pausar (espaço)" class="pause">II</button>
+      <button data-speed="1" title="Normal">▶</button>
+      <button data-speed="2" title="Rápido">▶▶</button>
+      <button data-speed="3" title="Muito rápido">▶▶▶</button>
+    </div>
+    <div class="menu-wrap">
+      <button id="mpBtn" title="Jogar com amigos">
+        <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2c3 .2 5.5 2.4 5.5 5.8"/></svg>
+        <span id="mpStatus">Jogar junto</span>
+      </button>
+      <div id="mp" class="pop">
+        <div id="mpOff">
+          <label>Seu nome<input id="mpName" maxlength="20" autocomplete="off"></label>
+          <button id="mpHost" class="primary">Criar sala com esta cidade</button>
+          <div class="sep">ou entrar na sala de um amigo</div>
+          <div class="row"><input id="mpCode" maxlength="5" placeholder="CÓDIGO" autocomplete="off"><button id="mpJoin">Entrar</button></div>
+          <p id="mpMsg"></p>
+        </div>
+        <div id="mpOn">
+          <small id="mpRole"></small>
+          <div class="code"><b id="mpCodeShow"></b><button id="mpCopy" title="Copiar código">Copiar</button></div>
+          <ul id="mpPlayers"></ul>
+          <button id="mpLeave">Sair da sala</button>
+        </div>
+      </div>
+    </div>
+    <div class="menu-wrap">
+      <button id="menuBtn" title="Menu">☰</button>
+      <div id="menu" class="pop">
+        <button id="saveBtn">Salvar agora</button>
+        <button id="newBtn">Novo mapa</button>
+        <p>Salva sozinho a cada mês de jogo.</p>
+      </div>
+    </div>
+  </header>
+
+  <aside id="info">
+    <button id="infoClose" title="Fechar">✕</button>
+    <h3 id="infoTitle"></h3>
+    <div id="infoBody"></div>
+  </aside>
+
+  <footer id="bottom">
+    <div id="hint"></div>
+    <nav id="tools"></nav>
+  </footer>
+
+  <div id="costTip"></div>
+  <div id="toast"></div>
+  <div id="loading">Gerando o mundo…</div>
+
+  <script src="lib/peerjs.min.js"></script>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
