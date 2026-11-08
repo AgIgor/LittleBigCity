@@ -105,7 +105,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #infoBody div { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-top: 1px solid var(--line); font-size: 13px; }
 #infoBody span { color: var(--muted); }
 #infoBody b { text-align: right; }
-#infoClose { position: absolute; top: 6px; right: 6px; border: 0; background: transparent; color: var(--muted); }
+.panel .close { position: absolute; top: 6px; right: 6px; border: 0; background: transparent; color: var(--muted); }
 
 /* ---------- avisos ---------- */
 #costTip {
@@ -128,7 +128,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .stat { min-width: 0; }
   .tool { width: 60px; font-size: 10px; }
   .tool kbd, #hint { display: none; }
-  #info { top: auto; bottom: 96px; width: auto; right: 8px; }
+  #info, #budgetPanel { top: auto; bottom: 96px; width: auto; left: 8px; right: 8px; max-height: 55vh; overflow: auto; }
+  #svcMenu { width: calc(100vw - 16px); }
 }
 
 /* ---------- multiplayer ---------- */
@@ -174,3 +175,91 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #alerts .pw { background: rgba(255,216,74,.15); color: #ffe48a; border: 1px solid rgba(255,216,74,.4); }
 #alerts .wt { background: rgba(90,184,255,.15); color: #a8d8ff; border: 1px solid rgba(90,184,255,.4); }
 #infoBody em.no { font-style: normal; color: #ffb4a6; }
+#alerts .sc { background: rgba(95,208,106,.15); color: #b8f0bc; border: 1px solid rgba(95,208,106,.4); }
+#alerts .hl { background: rgba(255,106,106,.15); color: #ffc0c0; border: 1px solid rgba(255,106,106,.4); }
+#alerts .pl { background: rgba(122,156,255,.15); color: #c4d2ff; border: 1px solid rgba(122,156,255,.4); }
+
+/* ---------- botões da barra superior ---------- */
+.stat.click { background: transparent; border: 0; padding: 2px 6px; margin: -2px -6px; border-radius: 6px; text-align: left; }
+.stat.click:hover { background: rgba(255,255,255,.08); }
+#clock { font-variant-numeric: tabular-nums; }
+#valueBtn {
+  display: flex; align-items: center; gap: 5px; height: 30px; padding: 0 9px; border-radius: 6px;
+  background: rgba(255,255,255,.06); border: 1px solid var(--line); font-size: 12px; margin-left: auto;
+}
+#valueBtn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linejoin: round; }
+#valueBtn:hover { background: rgba(255,255,255,.12); }
+#valueBtn.on { background: linear-gradient(90deg, rgba(216,72,58,.35), rgba(242,210,74,.35), rgba(74,200,90,.35)); border-color: #f2d24a; }
+.rci { margin-left: 0; }
+#menu .check { display: flex; align-items: center; gap: 8px; padding: 9px 10px; font-size: 14px; cursor: pointer; }
+#menu .check input { accent-color: var(--accent); }
+
+/* ---------- ferramentas extras ---------- */
+.tool[data-tool="services"] svg { color: #e8c8ff; }
+.tool[data-tool="services"][data-svc="power"] svg { color: #ffd84a; }
+.tool[data-tool="services"][data-svc="water"] svg { color: #5ab8ff; }
+.tool[data-tool="services"][data-svc="school"] svg { color: #5fd06a; }
+.tool[data-tool="services"][data-svc="health"] svg { color: #ff6a6a; }
+.tool[data-tool="services"][data-svc="police"] svg { color: #7a9cff; }
+.tool[data-tool="park"] svg { color: #8fd06a; }
+.pop.up { top: auto; bottom: 100%; right: auto; left: 50%; transform: translateX(-50%); margin-bottom: 4px; }
+#svcMenu { width: 330px; padding: 6px; }
+#svcMenu button {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 1px solid transparent;
+  border-radius: 8px; background: transparent; text-align: left;
+}
+#svcMenu button:hover { background: rgba(255,255,255,.07); }
+#svcMenu button.on { background: rgba(216,184,74,.16); border-color: var(--accent); }
+#svcMenu svg { width: 24px; height: 24px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#svcMenu span { display: flex; flex-direction: column; }
+#svcMenu small { color: var(--muted); font-size: 11px; }
+#svcMenu .svc-power svg { color: #ffd84a; } #svcMenu .svc-water svg { color: #5ab8ff; }
+#svcMenu .svc-school svg { color: #5fd06a; } #svcMenu .svc-health svg { color: #ff6a6a; }
+#svcMenu .svc-police svg { color: #7a9cff; }
+#bottom { position: fixed; }
+
+/* ---------- orçamento ---------- */
+#budgetPanel {
+  position: fixed; right: 8px; top: 70px; width: 300px; padding: 12px 14px; display: none;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+}
+#budgetPanel.open { display: block; }
+#budgetPanel h3 { margin: 0 0 10px; font-size: 15px; }
+.taxes label { display: grid; grid-template-columns: 96px 1fr 34px; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; }
+.taxes input { width: 100%; accent-color: var(--accent); }
+.taxes b { text-align: right; font-variant-numeric: tabular-nums; }
+.taxes .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.dot.r { background: var(--r); } .dot.c { background: var(--c); } .dot.i { background: var(--i); }
+.taxes .note { margin: 6px 0 10px; font-size: 11.5px; color: var(--muted); }
+#budgetTable { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+#budgetTable td { padding: 3px 0; border-top: 1px solid var(--line); }
+#budgetTable td:last-child { text-align: right; }
+#budgetTable .head td { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; border: 0; padding-top: 6px; }
+#budgetTable .total td { font-weight: 700; border-top: 1px solid rgba(255,255,255,.3); }
+#budgetTable .good td:last-child { color: var(--good); }
+#budgetTable .bad td:last-child { color: var(--bad); }
+#budgetTable .last td { color: var(--muted); font-size: 12px; }
+
+/* ---------- janela de novo mapa ---------- */
+.dialog { position: fixed; inset: 0; display: none; place-items: center; background: rgba(10,14,8,.55); z-index: 20; }
+.dialog.open { display: grid; }
+.dialog .panel {
+  width: min(360px, calc(100vw - 32px)); padding: 16px 18px; border-radius: 12px;
+  background: var(--panel-2); border: 1px solid var(--line);
+}
+.dialog h3 { margin: 0 0 12px; }
+.dialog label { display: block; margin-bottom: 12px; font-size: 13px; color: var(--muted); }
+.dialog small { font-size: 11px; }
+.dialog select, .dialog input {
+  display: block; width: 100%; margin-top: 4px; padding: 8px 10px; border-radius: 6px;
+  background: rgba(0,0,0,.3); border: 1px solid var(--line); color: var(--text); font: inherit;
+  user-select: text; -webkit-user-select: text;
+}
+.dialog select option { background: #2a2c24; }
+.dialog .row { display: flex; gap: 6px; align-items: center; }
+.dialog .row input { margin: 0; }
+.dialog .row.end { justify-content: flex-end; margin-top: 4px; }
+.dialog button { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line); background: rgba(255,255,255,.07); }
+.dialog button:hover { background: rgba(255,255,255,.14); }
+.dialog button.primary { background: var(--accent); color: #221d10; border: 0; font-weight: 700; }
+.dialog .warn { font-size: 12px; color: #ffc2b6; margin: 0 0 12px; }

@@ -19,18 +19,23 @@ Depois de mudar o código, use **Ctrl+F5** para o navegador não usar a versão 
 | Mover o mapa | botão direito ou do meio, ou arrastar no modo Inspecionar | dois dedos, ou um dedo no modo Inspecionar |
 | Zoom | roda do mouse | pinça |
 
-Teclado: `1`–`9` ferramentas, `WASD`/setas movem, `+`/`-` zoom, `espaço` pausa, `Esc` cancela.
+Teclado: `1`–`9` ferramentas (`7` abre os serviços), `WASD`/setas movem, `+`/`-` zoom, `espaço` pausa, `Esc` cancela.
 
 ## Como a cidade cresce
 
 - Zonas só crescem a até 2 tiles de uma rua.
 - **R** (residencial) traz moradores, **C** (comercial) e **I** (industrial) dão empregos. As barras R/C/I no topo mostram a demanda.
-- Prédios sobem de nível (casa → sobrado → prédio) quando a cidade passa de 120 e 600 habitantes.
-- Para subir de nível também precisam de serviços: **nível 2 exige energia** (usina, raio de 16 tiles) e **nível 3 exige energia e água** (caixa d'água, raio de 12 tiles). Prédios sem serviço ganham um ícone ⚡ ou 💧 flutuando. Clicar no alerta do topo leva a câmera até a região com mais prédios sem aquele serviço (cliques seguidos passam para a próxima região), e escolher Usina ou Caixa d'água mostra o alcance das que já existem.
-- Rua sobre a água vira **ponte** (mais cara para construir e manter).
-- Impostos entram todo fim de mês; ruas, pontes e serviços custam manutenção. O saldo do último mês aparece no topo.
+- Prédios sobem de nível (casa → sobrado → prédio) quando a cidade passa de 120 e 600 habitantes e quando têm os serviços:
+  - **nível 2:** energia (usina);
+  - **nível 3:** energia e água (caixa d'água), mais **escola e posto de saúde** para residências ou **delegacia** para comércio e indústria, e terreno valorizado para residências e comércio.
+- Os serviços ficam no botão **Serviços** (tecla 7). Prédios sem algum serviço ganham um ícone flutuando; os alertas no topo levam a câmera até a região do problema.
+- **Valor do terreno:** praças, rio e serviços valorizam; indústria desvaloriza. O botão **Valor** mostra o mapa de calor. Terreno valorizado faz residências e comércio crescerem mais rápido.
+- **Orçamento:** clique no caixa para abrir. Cada zona tem seu imposto (0% a 20%, padrão 9%); imposto alto arrecada mais, mas derruba a demanda.
+- Rua sobre a água vira **ponte**. Ruas, pontes, serviços e praças custam manutenção.
+- **Dia e noite:** a cidade escurece, janelas, postes e faróis acendem. Dá para desligar no menu ☰.
+- **Novo mapa** (menu ☰): escolha o tamanho (96, 128 ou 192) e a semente; a mesma semente gera o mesmo mapa.
 - O jogo salva sozinho no navegador a cada mês.
-- Carros, ônibus e pedestres circulam pelas ruas conforme a população e os empregos. Os carros fazem fila na mesma faixa e todos param quando o jogo pausa.
+- Carros, ônibus e pedestres circulam pelas ruas conforme a população e os empregos.
 
 ## Jogar com amigos
 

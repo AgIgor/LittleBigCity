@@ -2,9 +2,9 @@
 // Mouse: botão esquerdo usa a ferramenta, direito/meio arrasta o mapa, roda dá zoom.
 // Toque: um dedo usa a ferramenta (ou arrasta, no modo Inspecionar), dois dedos movem e dão zoom.
 import { TOOLS, plan } from './actions.js';
-import { SVC_RADIUS } from './config.js';
+import { SVC_RADIUS, SVC_KEY } from './config.js';
 
-const TOOL_KEYS = { 1: 'inspect', 2: 'clear', 3: 'road', 4: 'zoneR', 5: 'zoneC', 6: 'zoneI', 7: 'power', 8: 'water', 9: 'demolish' };
+const TOOL_KEYS = { 1: 'inspect', 2: 'clear', 3: 'road', 4: 'zoneR', 5: 'zoneC', 6: 'zoneI', 7: 'services', 8: 'park', 9: 'demolish' };
 
 export class Input {
   constructor(canvas, game) {
@@ -137,11 +137,11 @@ export class Input {
     }
     this.lastPlan = plan(this.game.world, tool, this.a, this.b);
     const svc = TOOLS[tool].svc;
-    if (svc) {
+    if (svc && SVC_RADIUS[svc]) {
       // mostra a área que a usina / caixa d'água vai atender
       const w = this.game.world, r = SVC_RADIUS[svc], { x: x0, y: y0 } = this.a, area = [];
       for (let y = y0 - r; y <= y0 + r; y++) for (let x = x0 - r; x <= x0 + r; x++) {
-        if ((x !== x0 || y !== y0) && w.inside(x, y) && (x - x0) ** 2 + (y - y0) ** 2 <= r * r) area.push({ i: y * w.N + x, state: svc === 1 ? 'power' : 'water' });
+        if ((x !== x0 || y !== y0) && w.inside(x, y) && (x - x0) ** 2 + (y - y0) ** 2 <= r * r) area.push({ i: y * w.N + x, state: SVC_KEY[svc] });
       }
       this.scene.setPreview(this.lastPlan.tiles.concat(area));
     } else this.scene.setPreview(this.lastPlan.tiles);

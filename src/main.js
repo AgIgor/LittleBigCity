@@ -1,16 +1,25 @@
 import { Application } from '../lib/pixi.min.mjs';
-import { N, SPEEDS } from './config.js';
+import { N, SPEEDS, DAY_CYCLE_SECONDS, SVC_KEY, SVC_NAME } from './config.js';
 import { World } from './world.js';
 import { apply, fmt, TOOLS } from './actions.js';
 import { tickDay } from './sim.js';
 import { buildAtlas } from './atlas.js';
-import { Scene } from './render.js';
+import { Scene, ambientAt } from './render.js';
 import { Input } from './input.js';
 import { UI } from './ui.js';
 import { Net } from './net.js';
 import { Traffic } from './traffic.js';
 
 const SAVE_KEY = 'littlebigcity-save-v1';
+const PREFS_KEY = 'littlebigcity-prefs';
+const SPEED_MUL = [0, 1, 1.5, 2.2];
+
+function loadPrefs() {
+  try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch { return {}; }
+}
+function savePrefs(p) {
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* sem armazenamento */ }
+}
 
 function loadSave() {
   try { return World.deserialize(JSON.parse(localStorage.getItem(SAVE_KEY))); } catch { return null; }
@@ -22,7 +31,11 @@ const game = {
   lastSpeed: 1,
   acc: 0,
 
+  prefs: loadPrefs(),
+  get dayNight() { return this.prefs.dayNight !== false; },
+
   setTool(id) {
+    if (id === 'services') { this.ui.toggleServices(true); return; }
     if (!TOOLS[id]) return;
     this.tool = id;
     this.ui.setTool(id);
@@ -45,10 +58,22 @@ const game = {
     if (r.cost) this.ui.toast(`− R$ ${fmt(r.cost)}`);
     this.ui.update();
   },
+  setDayNight(on) {
+    this.prefs.dayNight = on;
+    savePrefs(this.prefs);
+  },
+  toggleValueMap() {
+    const on = this.scene.overlay !== 'value';
+    this.scene.setOverlay(on ? 'value' : null);
+    this.ui.setValueMap(on);
+    if (on) this.ui.toast('Mapa de valor: verde valorizado, vermelho desvalorizado. Praças, água e serviços valorizam; indústria desvaloriza.');
+  },
+
   // Círculos de alcance: aparecem com a ferramenta do serviço escolhida ou
   // por alguns segundos depois de clicar num alerta
   updateCoverage() {
-    const kind = this.tool === 'power' ? 1 : this.tool === 'water' ? 2 : this.coverageUntil > performance.now() ? this.coverageFlash : 0;
+    const toolSvc = TOOLS[this.tool]?.svc;
+    const kind = toolSvc && toolSvc <= 5 ? toolSvc : this.coverageUntil > performance.now() ? this.coverageFlash : 0;
     const sig = kind + ':' + this.world.stats.services.join(',');
     if (sig !== this.coverageSig) { this.coverageSig = sig; this.scene.showCoverage(kind); }
   },
@@ -71,12 +96,12 @@ const game = {
     this.problemIdx[kind] = k;
     const c = list[k], x = c.sx / c.n, y = c.sy / c.n;
     this.scene.setCamera((x - y) * 64, (x + y + 1) * 32, Math.max(this.scene.cam.zoom, 0.6));
-    this.coverageFlash = kind === 'power' ? 1 : 2;
+    const svc = SVC_KEY.indexOf(kind);
+    this.coverageFlash = svc;
     this.coverageUntil = performance.now() + 6000;
     this.updateCoverage();
-    const what = kind === 'power' ? 'sem energia' : 'sem água';
-    const fix = kind === 'power' ? 'uma usina (tecla 7)' : "uma caixa d'água (tecla 8)";
-    this.ui.toast(`Região ${k + 1} de ${list.length}: ${c.n} prédio${c.n > 1 ? 's' : ''} ${what}. Coloque ${fix} por perto.`);
+    const name = SVC_NAME[svc];
+    this.ui.toast(`Região ${k + 1} de ${list.length}: ${c.n} prédio${c.n > 1 ? 's' : ''} sem ${name.toLowerCase()} por perto. Escolha em Serviços (tecla 7).`);
   },
 
   inspect({ x, y }) {
@@ -88,8 +113,8 @@ const game = {
     if (this.net?.isClient) return;   // a cidade é do anfitrião
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.world.serialize())); } catch { /* armazenamento indisponível */ }
   },
-  newMap(seed = (Math.random() * 2 ** 31) | 0) {
-    const w = new World(seed);
+  newMap(seed = (Math.random() * 1e9) | 0, size = this.world?.N || 128) {
+    const w = new World(seed, size);
     w.generate();
     this.useWorld(w);
     this.save();
@@ -158,6 +183,8 @@ async function start() {
     game.input.update(dt);
 
     if (game.speed && !game.net.isClient) {
+      const w = game.world;
+      w.clock = (w.clock + dt * SPEED_MUL[game.speed] / DAY_CYCLE_SECONDS) % 1;
       game.acc += dt;
       const per = SPEEDS[game.speed];
       let steps = 0;
@@ -176,6 +203,7 @@ async function start() {
 
     game.net.update(dt);
     game.scene.sync();
+    game.scene.applyAmbient(game.dayNight ? ambientAt(game.world.clock) : { tint: 0xffffff, lights: 0 });
     game.traffic.update(dt);
     game.scene.updateSmoke(dt, game.speed > 0);
     if ((badgeT += dt) > 0.5) { badgeT = 0; game.scene.refreshBadges(); game.updateCoverage(); }

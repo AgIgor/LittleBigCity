@@ -1,6 +1,9 @@
 // Todas as mudanças feitas pelo jogador passam por aqui como "ações" simples
 // ({tool, a, b}). Assim, no multiplayer, basta enviar a ação para os outros.
-import { N, WATER, GRASS, DIRT, NONE, COST, ZR, ZC, ZI, SVC_POWER, SVC_WATER } from './config.js';
+import {
+  N, WATER, GRASS, DIRT, NONE, COST, ZR, ZC, ZI, TAX_MAX,
+  SVC_POWER, SVC_WATER, SVC_SCHOOL, SVC_HEALTH, SVC_POLICE, SVC_PARK,
+} from './config.js';
 
 export const TOOLS = {
   inspect: { name: 'Inspecionar', shape: 'point' },
@@ -11,6 +14,10 @@ export const TOOLS = {
   zoneI: { name: 'Industrial', shape: 'rect', zone: ZI },
   power: { name: 'Usina', shape: 'point', svc: SVC_POWER },
   water: { name: "Caixa d'água", shape: 'point', svc: SVC_WATER },
+  school: { name: 'Escola', shape: 'point', svc: SVC_SCHOOL },
+  health: { name: 'Posto de saúde', shape: 'point', svc: SVC_HEALTH },
+  police: { name: 'Delegacia', shape: 'point', svc: SVC_POLICE },
+  park: { name: 'Praça', shape: 'rect', svc: SVC_PARK },
   demolish: { name: 'Demolir', shape: 'rect' },
 };
 
@@ -56,7 +63,8 @@ function judge(w, tool, i) {
       if (built) return ['bad', 0, 'Demolir o prédio antes de mudar a zona'];
       return ['ok', COST.zone + clearCost];
     }
-    case 'power': case 'water':
+    case 'power': case 'water': case 'school': case 'health': case 'police': case 'park':
+      if (tool === 'park' && w.svc[i] === SVC_PARK) return ['skip', 0];
       if (t === WATER || w.road[i]) return ['bad', 0, 'Precisa de terra firme fora da rua'];
       if (built) return ['bad', 0, 'Já há uma construção aqui'];
       return ['ok', COST[tool] + clearCost];
@@ -88,6 +96,11 @@ export function plan(w, tool, a, b) {
 export function apply(w, action) {
   const { tool, a, b } = action;
   if (tool === 'inspect') return { ok: true };
+  if (tool === 'tax') {
+    if (!['r', 'c', 'i'].includes(action.zone)) return { ok: false, msg: 'Zona inválida' };
+    w.tax[action.zone] = Math.max(0, Math.min(TAX_MAX, Math.round(+action.value || 0)));
+    return { ok: true, cost: 0 };
+  }
   const p = plan(w, tool, a, b);
   const todo = p.tiles.filter(t => t.state === 'ok');
   if (!todo.length) return { ok: false, msg: p.reason || 'Nada para fazer aqui' };
@@ -102,9 +115,9 @@ export function apply(w, action) {
       case 'clear': clearHere(); break;
       case 'road': clearHere(); w.road[i] = 1; roadsChanged = true; break;
       case 'zoneR': case 'zoneC': case 'zoneI': clearHere(); w.zone[i] = TOOLS[tool].zone; break;
-      case 'power': case 'water':
+      case 'power': case 'water': case 'school': case 'health': case 'police': case 'park':
         clearHere(); w.zone[i] = 0; w.svc[i] = TOOLS[tool].svc; svcChanged = true;
-        if (w.terrain[i] === GRASS) w.terrain[i] = DIRT;
+        if (w.terrain[i] === GRASS && tool !== 'park') w.terrain[i] = DIRT;
         break;
       case 'demolish':
         if (w.svc[i]) { w.svc[i] = 0; svcChanged = true; }
@@ -118,6 +131,7 @@ export function apply(w, action) {
   w.money -= p.cost;
   if (roadsChanged) w.roadsChangedAt(todo.map(t => t.i));
   if (svcChanged) w.recomputeServices();
+  if (svcChanged || tool === 'demolish' || tool === 'clear') w.recomputeValue();
   w.recomputeStats();
   return { ok: true, cost: p.cost, count: todo.length };
 }

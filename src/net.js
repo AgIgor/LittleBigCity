@@ -114,7 +114,7 @@ export class Net {
     w.changed.clear();
     if (tiles || this.stateT > 0.5) {
       this.stateT = 0;
-      this.broadcast({ t: 'delta', tiles, money: w.money, day: w.day, demand: w.demand, speed: this.game.speed });
+      this.broadcast({ t: 'delta', tiles, money: w.money, day: w.day, demand: w.demand, speed: this.game.speed, tax: w.tax, clock: w.clock });
     }
   }
 
@@ -171,10 +171,14 @@ export class Net {
           }
           if (roads.length) w.roadsChangedAt(roads);
           if (svc) w.recomputeServices();
+          // o anfitrião recalcula o valor do terreno a cada 5 dias; o convidado acompanha
+          if (svc || ((msg.day / 5) | 0) !== this.valueStep) { this.valueStep = (msg.day / 5) | 0; w.recomputeValue(); }
           w.recomputeStats();
           g.input?.refresh();
         }
         w.money = msg.money; w.day = msg.day; w.demand = msg.demand;
+        if (msg.tax) w.tax = msg.tax;
+        if (msg.clock != null) w.clock = msg.clock;
         w.changed.clear();
         if (msg.speed !== g.speed) g.setSpeed(msg.speed, true);
         break;

@@ -90,6 +90,12 @@ export class Traffic {
     };
     this.laneTarget(a);
     a.ox = a.tox; a.oy = a.toy;
+    if (kind !== 'ped') {
+      // luz do farol no chão, à frente do veículo (aparece à noite)
+      a.glow = this.scene.sprite('headGlow');
+      a.glow.isHeadlight = true;
+      this.scene.lightsLayer.addChild(a.glow);
+    }
     this.agents.push(a);
   }
 
@@ -138,6 +144,7 @@ export class Traffic {
 
   kill(a) {
     a.s.destroy();
+    a.glow?.destroy();
     a.dead = true;
   }
 
@@ -214,6 +221,13 @@ export class Traffic {
       a.s.zIndex = (fx + fy) * 2;
       a.s.alpha = a.fade;
       a.s.visible = this.scene.inView(px, py);
+      if (a.glow) {
+        const reach = a.kind === 'bus' ? 0.55 : 0.42;
+        const gx = fx + dx * reach, gy = fy + dy * reach;
+        a.glow.position.set((gx - gy) * HW, (gx + gy) * HH);
+        a.glow.alpha = a.fade;
+        a.glow.visible = a.s.visible;
+      }
     }
     if (this.agents.some(a => a.dead)) this.agents = this.agents.filter(a => !a.dead);
   }

@@ -1,11 +1,14 @@
-// Cena Pixi: camadas de chão, ruas, zonas, objetos (ordenados por profundidade)
-// e a pré-visualização da ferramenta.
+// Cena Pixi: camadas de chão, ruas, zonas, objetos (ordenados por profundidade),
+// luzes da noite, fumaça, avisos e a pré-visualização da ferramenta.
 import { Container, Sprite, Text, Graphics } from '../lib/pixi.min.mjs';
-import { TW, TH, N, CHUNK, WATER, SAND, GRASS, DIRT, TREE, BUSH, ROCK, ZONE_COLOR, ROAD_REACH, SVC_RADIUS } from './config.js';
-import { TREE_VARIANTS, BUSH_VARIANTS, ROCK_VARIANTS, BUILDINGS, CHIMNEYS } from './art.js';
+import {
+  TW, TH, N, CHUNK, WATER, SAND, DIRT, TREE, BUSH, ROCK, ZONE_COLOR, ROAD_REACH,
+  SVC_RADIUS, SVC_COLOR, SVC_KEY, SVC_PARK, COVER_KINDS,
+} from './config.js';
+import { TREE_VARIANTS, BUSH_VARIANTS, ROCK_VARIANTS, BUILDINGS, CHIMNEYS, PARK_VARIANTS } from './art.js';
+import { hash2 } from './rng.js';
 
 const HW = TW / 2, HH = TH / 2;
-const CN = Math.ceil(N / CHUNK);
 
 export const tileToWorld = (x, y) => [(x - y) * HW, (x + y) * HH];
 export function worldToTile(wx, wy) {
@@ -19,6 +22,30 @@ function grassTint(shade) {
   return (Math.round(r * 255) << 16) | (Math.round(gg * 255) << 8) | Math.round(b * 255);
 }
 
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+function mixColor(c1, c2, t) {
+  const r = lerp((c1 >> 16) & 255, (c2 >> 16) & 255, t), g = lerp((c1 >> 8) & 255, (c2 >> 8) & 255, t), b = lerp(c1 & 255, c2 & 255, t);
+  return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
+}
+
+// Cor da luz ambiente e intensidade das luzes artificiais para a hora do dia
+// (clock: 0 = meia-noite, 0.5 = meio-dia)
+export function ambientAt(clock) {
+  const sun = -Math.cos(clock * Math.PI * 2);             // -1 meia-noite .. 1 meio-dia
+  const day = smooth(-0.3, 0.35, sun);
+  let tint = mixColor(0x46557f, 0xffffff, day);
+  const dusk = Math.exp(-(((sun - 0.02) / 0.2) ** 2));     // nascer e pôr do sol
+  tint = mixColor(tint, 0xffa878, dusk * 0.45);
+  return { tint, lights: smooth(0.25, 0.75, 1 - day) };
+}
+
+// Valor do terreno -> cor do mapa de calor (vermelho baixo, amarelo médio, verde alto)
+function valueColor(v) {
+  const t = Math.max(0, Math.min(1, (v - 50) / 120));
+  return t < 0.5 ? mixColor(0xd8483a, 0xf2d24a, t * 2) : mixColor(0xf2d24a, 0x4ac85a, (t - 0.5) * 2);
+}
+
 export class Scene {
   constructor(app, atlas) {
     this.app = app;
@@ -27,6 +54,8 @@ export class Scene {
     app.stage.addChild(this.root);
     this.cam = { x: 0, y: N * HH, zoom: 0.55 };
     this.camDirty = true;
+    this.overlay = null;
+    this.ambient = { tint: 0xffffff, lights: 0 };
   }
 
   sprite(key) {
@@ -42,44 +71,49 @@ export class Scene {
 
   build(world) {
     this.world = world;
+    this.CN = Math.ceil(N / CHUNK);
     this.root.removeChildren().forEach(c => c.destroy({ children: true }));
-    this.cursorMap = new Map();
-    const mkChunks = () => {
-      const layer = new Container(), chunks = [];
-      for (let k = 0; k < CN * CN; k++) { const c = new Container(); chunks.push(c); layer.addChild(c); }
-      this.root.addChild(layer);
-      return chunks;
+    const layer = (blend) => {
+      const c = new Container();
+      if (blend) c.blendMode = blend;
+      this.root.addChild(c);
+      return c;
     };
-    this.groundChunks = mkChunks();
-    this.roadChunks = mkChunks();
-    this.zoneChunks = mkChunks();
+    const chunked = () => {
+      const l = layer(), chunks = [];
+      for (let k = 0; k < this.CN * this.CN; k++) { const c = new Container(); chunks.push(c); l.addChild(c); }
+      return [l, chunks];
+    };
+    [this.groundLayer, this.groundChunks] = chunked();
+    [this.roadLayer, this.roadChunks] = chunked();
+    this.glowLayer = layer('add');            // postes acesos (abaixo dos prédios)
+    [this.zoneLayer, this.zoneChunks] = chunked();
     this.coverage = new Graphics();
     this.root.addChild(this.coverage);
     this.coverageKind = 0;
-    this.objects = new Container();
+    this.objects = layer();
     this.objects.sortableChildren = true;
-    this.root.addChild(this.objects);
-    this.preview = new Container();
-    this.root.addChild(this.preview);
+    this.lightsLayer = layer('add');          // janelas acesas e faróis
+    this.preview = layer();
     this.previewPool = [];
-    this.smokeLayer = new Container();
-    this.root.addChild(this.smokeLayer);
+    this.smokeLayer = layer();
     this.puffs = [];
     this.chimneys = new Map();     // tile -> posições (mundo) do topo das chaminés
-    this.badgeLayer = new Container();
-    this.root.addChild(this.badgeLayer);
+    this.badgeLayer = layer();
     this.badges = new Map();       // chave 'tile:tipo' -> sprite
-    this.cursorLayer = new Container();
-    this.root.addChild(this.cursorLayer);
+    this.cursorLayer = layer();
     this.cursorMap = new Map();
 
-    this.groundS = new Array(N * N);
-    this.roadS = new Array(N * N).fill(null);
-    this.zoneS = new Array(N * N).fill(null);
-    this.objS = new Array(N * N).fill(null);
-    this.objKey = new Array(N * N).fill('');
+    const NN = N * N;
+    this.groundS = new Array(NN);
+    this.roadS = new Array(NN).fill(null);
+    this.lampS = new Array(NN).fill(null);
+    this.zoneS = new Array(NN).fill(null);
+    this.objS = new Array(NN).fill(null);
+    this.litS = new Array(NN).fill(null);
+    this.objKey = new Array(NN).fill('');
 
-    for (let i = 0; i < N * N; i++) {
+    for (let i = 0; i < NN; i++) {
       const x = i % N, y = (i / N) | 0, [px, py] = tileToWorld(x, y);
       const s = this.sprite('grass0');
       s.position.set(px, py);
@@ -88,10 +122,18 @@ export class Scene {
       this.refreshTile(i);
     }
     world.dirty.clear();
+    this.valueVersion = world.valueVersion;
+    this.applyAmbient(this.ambient, true);
     this.camDirty = true;
   }
 
-  chunkOf(x, y) { return ((y / CHUNK) | 0) * CN + ((x / CHUNK) | 0); }
+  chunkOf(x, y) { return ((y / CHUNK) | 0) * this.CN + ((x / CHUNK) | 0); }
+
+  groundTint(i) {
+    const w = this.world;
+    if (this.overlay === 'value' && w.terrain[i] !== WATER) return valueColor(w.value[i]);
+    return w.terrain[i] === 2 ? grassTint(w.shade[i]) : 0xffffff;
+  }
 
   refreshTile(i) {
     const w = this.world, x = i % N, y = (i / N) | 0, [px, py] = tileToWorld(x, y);
@@ -99,12 +141,13 @@ export class Scene {
 
     // chão
     const g = this.groundS[i];
-    if (t === WATER) { this.setTex(g, 'water' + w.maskOf(i, j => w.terrain[j] !== WATER)); g.tint = 0xffffff; }
-    else if (t === SAND) { this.setTex(g, 'sand' + (ov % 2)); g.tint = 0xffffff; }
-    else if (t === DIRT) { this.setTex(g, 'dirt' + (ov % 3)); g.tint = 0xffffff; }
-    else { this.setTex(g, 'grass' + (ov % 4)); g.tint = grassTint(w.shade[i]); }
+    if (t === WATER) this.setTex(g, 'water' + w.maskOf(i, j => w.terrain[j] !== WATER));
+    else if (t === SAND) this.setTex(g, 'sand' + (ov % 2));
+    else if (t === DIRT) this.setTex(g, 'dirt' + (ov % 3));
+    else this.setTex(g, 'grass' + (ov % 4));
+    g.tint = this.groundTint(i);
 
-    // rua
+    // rua e poste
     if (w.road[i]) {
       if (!this.roadS[i]) {
         const s = this.roadS[i] = this.sprite('road0');
@@ -112,7 +155,17 @@ export class Scene {
         this.roadChunks[this.chunkOf(x, y)].addChild(s);
       }
       this.setTex(this.roadS[i], (t === WATER ? 'bridge' : 'road') + w.maskOf(i, j => w.road[j]));
-    } else if (this.roadS[i]) { this.roadS[i].destroy(); this.roadS[i] = null; }
+      if (!this.lampS[i] && hash2(x, y, 99) < 0.45) {
+        const s = this.lampS[i] = this.sprite('lampGlow');
+        const side = hash2(y, x, 7) < 0.5 ? 1 : -1;
+        s.position.set(px + side * 18, py + HH + 4);
+        s.visible = this.inView(px, py);
+        this.glowLayer.addChild(s);
+      }
+    } else {
+      if (this.roadS[i]) { this.roadS[i].destroy(); this.roadS[i] = null; }
+      if (this.lampS[i]) { this.lampS[i].destroy(); this.lampS[i] = null; }
+    }
 
     // marcação de zona (só em lote vazio)
     const showZone = w.zone[i] && !w.bld[i] && !w.cons[i];
@@ -127,9 +180,10 @@ export class Scene {
       s.alpha = w.roadDist[i] <= ROAD_REACH ? 0.85 : 0.35;
     } else if (this.zoneS[i]) { this.zoneS[i].destroy(); this.zoneS[i] = null; }
 
-    // objeto: obra, prédio ou vegetação
+    // objeto: serviço, obra, prédio ou vegetação
     let key = '';
-    if (w.svc[i]) key = 'svc' + w.svc[i];
+    if (w.svc[i] === SVC_PARK) key = 'svc6_' + (ov % PARK_VARIANTS);
+    else if (w.svc[i]) key = 'svc' + w.svc[i];
     else if (w.cons[i]) key = 'obra' + (w.bld[i] ? 1 : 0);
     else if (w.bld[i] && w.zone[i]) {
       const list = BUILDINGS[w.zone[i]][w.bld[i]];
@@ -153,6 +207,16 @@ export class Scene {
           this.objects.addChild(s);
         } else this.setTex(this.objS[i], key);
       }
+      // janelas acesas à noite
+      const litKey = 'lit_' + key;
+      if (this.tex[litKey]) {
+        if (!this.litS[i]) {
+          const s = this.litS[i] = this.sprite(litKey);
+          s.position.set(px, py);
+          s.visible = this.inView(px, py);
+          this.lightsLayer.addChild(s);
+        } else this.setTex(this.litS[i], litKey);
+      } else if (this.litS[i]) { this.litS[i].destroy(); this.litS[i] = null; }
     }
   }
 
@@ -163,6 +227,39 @@ export class Scene {
       for (const i of w.dirty) this.refreshTile(i);
       w.dirty.clear();
     }
+    if (this.overlay === 'value' && w.valueVersion !== this.valueVersion) this.retintGround();
+    this.valueVersion = w.valueVersion;
+  }
+
+  retintGround() {
+    for (let i = 0; i < N * N; i++) this.groundS[i].tint = this.groundTint(i);
+  }
+
+  // Mapa de calor do valor do terreno (null desliga)
+  setOverlay(kind) {
+    this.overlay = kind;
+    this.retintGround();
+    this.objects.alpha = kind ? 0.45 : 1;
+    this.applyAmbient(this.ambient, true);
+  }
+
+  // ---------- dia e noite ----------
+  // Recolorir as camadas obriga o Pixi a atualizar a cor de todos os sprites
+  // (alguns ms no mapa grande), então só aplica quando a mudança é perceptível.
+  applyAmbient(amb, force) {
+    const prev = this.ambient;
+    const chan = (a, b, sh) => Math.abs(((a >> sh) & 255) - ((b >> sh) & 255));
+    const tintMoved = Math.max(chan(prev.tint, amb.tint, 16), chan(prev.tint, amb.tint, 8), chan(prev.tint, amb.tint, 0)) >= 4;
+    const lightMoved = Math.abs(prev.lights - amb.lights) >= 0.03 || (amb.lights === 0) !== (prev.lights === 0);
+    if (!this.groundLayer || (!force && !tintMoved && !lightMoved)) return;
+    this.ambient = amb;
+    // com o mapa de valor ligado, mostra tudo claro para dar para ler as cores
+    const tint = this.overlay ? 0xffffff : amb.tint;
+    for (const l of [this.groundLayer, this.roadLayer, this.zoneLayer, this.objects, this.smokeLayer]) l.tint = tint;
+    const lights = this.overlay ? 0 : amb.lights;
+    this.glowLayer.alpha = lights * 0.9;
+    this.lightsLayer.alpha = lights;
+    this.glowLayer.visible = this.lightsLayer.visible = lights > 0.02;
   }
 
   // Fumaça: cada chaminé visível solta baforadas que sobem, crescem e somem
@@ -202,15 +299,15 @@ export class Scene {
     const w = this.world, seen = new Set();
     for (let i = 0; i < N * N; i++) {
       if (!w.bld[i] || w.cons[i]) continue;
-      const kinds = ['power', 'water'].filter(k => w.lacks(i, k));
+      const kinds = COVER_KINDS.filter(k => w.lacks(i, k));
       kinds.forEach((k, n) => {
         const key = i + ':' + k;
         seen.add(key);
         if (this.badges.has(key)) return;
-        const s = this.sprite(k === 'power' ? 'badgePower' : 'badgeWater');
+        const s = this.sprite('badge_' + k);
         const x = i % N, y = (i / N) | 0, [px, py] = tileToWorld(x, y);
         const lift = [0, 58, 96, 196][w.bld[i]];
-        s.baseX = px + (kinds.length > 1 ? (n ? 16 : -16) : 0);
+        s.baseX = px + (n - (kinds.length - 1) / 2) * 30;
         s.baseY = py + HH - lift;
         s.phase = (x * 7 + y * 13) % 10;
         s.position.set(s.baseX, s.baseY);
@@ -232,13 +329,13 @@ export class Scene {
     }
   }
 
-  // Círculos com o alcance das usinas (1) ou caixas d'água (2); 0 esconde
+  // Círculos com o alcance de um tipo de serviço (1 a 5); 0 esconde
   showCoverage(kind) {
     this.coverageKind = kind;
     const g = this.coverage;
     g.clear();
     if (!kind) return;
-    const w = this.world, col = kind === 1 ? 0xffd84a : 0x5ab8ff, r = SVC_RADIUS[kind];
+    const w = this.world, col = SVC_COLOR[kind], r = SVC_RADIUS[kind];
     for (let i = 0; i < N * N; i++) {
       if (w.svc[i] !== kind) continue;
       const [px, py] = tileToWorld(i % N + 0.5, ((i / N) | 0) + 0.5);
@@ -253,7 +350,7 @@ export class Scene {
   // ---------- câmera ----------
   setCamera(x, y, zoom) {
     const c = this.cam;
-    c.zoom = Math.max(0.12, Math.min(2.2, zoom ?? c.zoom));
+    c.zoom = Math.max(0.1, Math.min(2.2, zoom ?? c.zoom));
     const maxX = N * HW, maxY = N * TH;
     c.x = Math.max(-maxX, Math.min(maxX, x ?? c.x));
     c.y = Math.max(0, Math.min(maxY, y ?? c.y));
@@ -278,7 +375,7 @@ export class Scene {
   updateCamera() {
     if (!this.camDirty) return;
     this.camDirty = false;
-    const c = this.cam, s = this.app.screen;
+    const c = this.cam, s = this.app.screen, CN = this.CN;
     this.root.scale.set(c.zoom);
     this.root.position.set(s.width / 2 - c.x * c.zoom, s.height / 2 - c.y * c.zoom);
     const hw = s.width / 2 / c.zoom, hh = s.height / 2 / c.zoom;
@@ -293,6 +390,8 @@ export class Scene {
       this.groundChunks[k].visible = this.roadChunks[k].visible = this.zoneChunks[k].visible = vis;
     }
     for (const o of this.objects.children) o.visible = this.inView(o.x, o.y);
+    for (const o of this.glowLayer.children) o.visible = this.inView(o.x, o.y);
+    for (const o of this.lightsLayer.children) if (!o.isHeadlight) o.visible = this.inView(o.x, o.y);
     for (const c of this.cursorMap.values()) c.label.scale.set(1 / this.cam.zoom);
   }
 
@@ -344,10 +443,11 @@ export class Scene {
       const s = pool[k];
       if (k >= tiles.length) { s.visible = false; continue; }
       const { i, state } = tiles[k], [px, py] = tileToWorld(i % N, (i / N) | 0);
+      const area = SVC_KEY.indexOf(state);
       s.visible = true;
       s.position.set(px, py);
-      s.tint = { ok: 0x8cff96, bad: 0xff5a4a, power: 0xffd84a, water: 0x5ab8ff }[state] ?? 0xffffff;
-      s.alpha = state === 'skip' ? 0.3 : state === 'power' || state === 'water' ? 0.38 : 0.8;
+      s.tint = area > 0 ? SVC_COLOR[area] : { ok: 0x8cff96, bad: 0xff5a4a }[state] ?? 0xffffff;
+      s.alpha = state === 'skip' ? 0.3 : area > 0 ? 0.38 : 0.8;
     }
   }
 }

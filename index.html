@@ -11,12 +11,17 @@
 
   <header id="top">
     <div class="brand">Little<b>Big</b>City</div>
-    <div class="stat" title="Dinheiro em caixa"><small>Caixa</small><span id="money">R$ 0</span></div>
+    <button class="stat click" id="moneyBtn" title="Abrir orçamento e impostos"><small>Caixa</small><span id="money">R$ 0</span></button>
     <div class="stat" title="População"><small>População</small><span id="pop">0</span></div>
     <div class="stat hide-sm" title="Empregos no comércio e na indústria"><small>Empregos</small><span id="jobs">0</span></div>
-    <div class="stat" title="Data"><small>Data</small><span id="date">1 Jan · Ano 1</span></div>
-    <div class="stat hide-sm" title="Saldo do último mês: impostos menos manutenção"><small>Último mês</small><span id="budget"></span></div>
+    <div class="stat" title="Data e hora"><small>Data</small><span id="date">1 Jan · Ano 1</span></div>
+    <div class="stat hide-sm" title="Hora do dia"><small>Hora</small><span id="clock">08:00</span></div>
+    <button class="stat click hide-sm" id="budgetBtn" title="Saldo do último mês. Clique para ver o orçamento"><small>Último mês</small><span id="budget"></span></button>
     <div id="alerts"></div>
+    <button id="valueBtn" title="Mapa de valor do terreno">
+      <svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>
+      <span>Valor</span>
+    </button>
     <div class="rci" title="Demanda: Residencial, Comercial, Industrial">
       <div><i id="dem-r" class="r"></i><em>R</em></div>
       <div><i id="dem-c" class="c"></i><em>C</em></div>
@@ -53,19 +58,48 @@
       <button id="menuBtn" title="Menu">☰</button>
       <div id="menu" class="pop">
         <button id="saveBtn">Salvar agora</button>
-        <button id="newBtn">Novo mapa</button>
+        <button id="newBtn">Novo mapa…</button>
+        <label class="check"><input type="checkbox" id="dayNightChk" checked> Ciclo de dia e noite</label>
+        <p id="seedInfo"></p>
         <p>Salva sozinho a cada mês de jogo.</p>
       </div>
     </div>
   </header>
 
-  <aside id="info">
-    <button id="infoClose" title="Fechar">✕</button>
+  <aside id="info" class="panel">
+    <button class="close" id="infoClose" title="Fechar">✕</button>
     <h3 id="infoTitle"></h3>
     <div id="infoBody"></div>
   </aside>
 
+  <aside id="budgetPanel" class="panel">
+    <button class="close" id="budgetClose" title="Fechar">✕</button>
+    <h3>Orçamento</h3>
+    <div class="taxes">
+      <label><span><i class="dot r"></i>Residencial</span><input type="range" min="0" max="20" step="1" data-tax="r"><b data-taxv="r"></b></label>
+      <label><span><i class="dot c"></i>Comercial</span><input type="range" min="0" max="20" step="1" data-tax="c"><b data-taxv="c"></b></label>
+      <label><span><i class="dot i"></i>Industrial</span><input type="range" min="0" max="20" step="1" data-tax="i"><b data-taxv="i"></b></label>
+      <p class="note">Imposto alto enche o caixa, mas espanta moradores e empresas (a demanda cai). Padrão: 9%.</p>
+    </div>
+    <table id="budgetTable"></table>
+  </aside>
+
+  <div id="newMapDlg" class="dialog">
+    <div class="panel">
+      <h3>Novo mapa</h3>
+      <label>Tamanho
+        <select id="nmSize"></select>
+      </label>
+      <label>Semente <small>(o mesmo número gera o mesmo mapa)</small>
+        <div class="row"><input id="nmSeed" inputmode="numeric" autocomplete="off"><button id="nmRandom" title="Sortear">🎲</button></div>
+      </label>
+      <p class="warn" id="nmWarn">A cidade atual será substituída.</p>
+      <div class="row end"><button id="nmCancel">Cancelar</button><button id="nmGo" class="primary">Gerar mapa</button></div>
+    </div>
+  </div>
+
   <footer id="bottom">
+    <div id="svcMenu" class="pop up"></div>
     <div id="hint"></div>
     <nav id="tools"></nav>
   </footer>

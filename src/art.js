@@ -760,6 +760,138 @@ function obra(variant) {
   });
 }
 
+// --- Serviços públicos ---
+function flag(x, u, v, z, col) {
+  x.strokeStyle = '#d8d4cc'; x.lineWidth = 1.4;
+  x.beginPath(); x.moveTo(...P(u, v, z)); x.lineTo(...P(u, v, z + 34)); x.stroke();
+  const [fx, fy] = P(u, v, z + 34);
+  poly(x, [[fx, fy], [fx + 13, fy + 3], [fx + 13, fy + 11], [fx, fy + 8]], col, 'rgba(0,0,0,.35)', 0.6);
+  x.fillStyle = '#f2c94c'; x.beginPath(); x.moveTo(fx + 6.5, fy + 3.5); x.lineTo(fx + 11, fy + 7); x.lineTo(fx + 6.5, fy + 10); x.lineTo(fx + 2, fy + 6.5); x.fill();
+}
+
+function escola() {
+  return building(1300, x => {
+    lot(x, '#86a052');
+    // quadra de esportes
+    poly(x, quad(0.58, 0.08, 0.94, 0.5), '#c46a4a', 'rgba(255,255,255,.7)');
+    x.strokeStyle = 'rgba(255,255,255,.8)'; x.lineWidth = 1;
+    x.beginPath(); x.moveTo(...P(0.76, 0.08)); x.lineTo(...P(0.76, 0.5)); x.stroke();
+    const wall = '#e8d8a8', fh = 26;
+    const u0 = 0.08, v0 = 0.12, u1 = 0.52, v1 = 0.9;
+    groundShadow(x, u0, v0, u1, v1, 2 * fh + 20);
+    box(x, u0, v0, u1, v1, 0, 2 * fh, wall, { top: false });
+    x.strokeStyle = 'rgba(0,0,0,.2)'; x.lineWidth = 1;
+    x.beginPath(); x.moveTo(...P(u1, v0, fh)); x.lineTo(...P(u1, v1, fh)); x.lineTo(...P(u0, v1, fh)); x.stroke();
+    windows(x, 'R', u1, v0, v1, 0, 2, fh, 5, GLASS, GLINT);
+    windows(x, 'L', v1, u0, u1, fh, 1, fh, 2, GLASS, GLINT);
+    faceRect(x, 'L', v1, 0.2, 0.36, 0, 20, '#3a6a4a', 'rgba(0,0,0,.4)');
+    box(x, 0.16, v1, 0.4, v1 + 0.07, 20, 23, '#3a8a5a');
+    hip(x, u0, v0, u1, v1, 2 * fh, 16, '#a5503a');
+    flag(x, 0.62, 0.84, 0, '#2f8a4a');
+    // cerca verde
+    x.strokeStyle = '#3a7a4a'; x.lineWidth = 1.5;
+    x.beginPath(); x.moveTo(...P(0.56, 0.96, 7)); x.lineTo(...P(0.96, 0.96, 7)); x.lineTo(...P(0.96, 0.04, 7)); x.stroke();
+  });
+}
+
+function postoSaude() {
+  return building(1400, x => {
+    lot(x, '#b8b4aa');
+    poly(x, quad(0.06, 0.06, 0.94, 0.28), '#86a052');
+    const wall = '#eeeae2', fh = 24;
+    const u0 = 0.14, v0 = 0.3, u1 = 0.82, v1 = 0.86;
+    groundShadow(x, u0, v0, u1, v1, 2 * fh);
+    box(x, u0, v0, u1, v1, 0, 2 * fh, wall, { top: false });
+    // faixa verde-água
+    faceRect(x, 'R', u1, v0, v1, fh - 3, fh + 1, '#3aa89a');
+    faceRect(x, 'L', v1, u0, u1, fh - 3, fh + 1, '#3aa89a');
+    windows(x, 'R', u1, v0, v1, fh, 1, fh, 3, GLASS, GLINT);
+    windows(x, 'L', v1, u0, u1, fh, 1, fh, 3, GLASS, GLINT);
+    faceRect(x, 'L', v1, 0.36, 0.6, 0, 18, '#5a7a8a', 'rgba(0,0,0,.4)');
+    box(x, 0.3, v1, 0.66, v1 + 0.08, 18, 21, '#c8c4bc');
+    flatRoof(x, u0, v0, u1, v1, 2 * fh, wall, 4);
+    // cruz vermelha na fachada
+    const [cx, cy] = P(u1, (v0 + v1) / 2, 2 * fh - 10);
+    x.fillStyle = '#ffffff'; x.fillRect(cx - 9, cy - 9, 18, 18);
+    x.fillStyle = '#d83a3a'; x.fillRect(cx - 7, cy - 2.5, 14, 5); x.fillRect(cx - 2.5, cy - 7, 5, 14);
+    // ambulância
+    const [ax, ay] = P(0.5, 0.17);
+    poly(x, [[ax - 14, ay + 2], [ax + 10, ay - 10], [ax + 18, ay - 6], [ax - 6, ay + 6]], 'rgba(0,0,0,.25)');
+    box(x, 0.36, 0.12, 0.66, 0.22, 2, 14, '#f4f2ec');
+    faceRect(x, 'L', 0.22, 0.44, 0.56, 7, 11, '#d83a3a');
+    box(x, 0.48, 0.15, 0.54, 0.19, 14, 16, '#3a7ad8');
+  });
+}
+
+function delegacia() {
+  return building(1500, x => {
+    lot(x, '#a8a49a');
+    const wall = '#c8ccd2', fh = 26;
+    const u0 = 0.12, v0 = 0.14, u1 = 0.7, v1 = 0.86;
+    groundShadow(x, u0, v0, u1, v1, 2 * fh);
+    box(x, u0, v0, u1, v1, 0, 2 * fh, wall, { top: false });
+    faceRect(x, 'R', u1, v0, v1, 2 * fh - 9, 2 * fh - 3, '#2e4a7a');
+    faceRect(x, 'L', v1, u0, u1, 2 * fh - 9, 2 * fh - 3, '#2e4a7a');
+    windows(x, 'R', u1, v0, v1, 0, 2, fh - 2, 4, GLASS, GLINT);
+    windows(x, 'L', v1, u0, u0 + 0.3, 0, 2, fh - 2, 1, GLASS, GLINT);
+    faceRect(x, 'L', v1, 0.48, 0.62, 0, 20, '#2e3a4a', 'rgba(0,0,0,.45)');
+    flatRoof(x, u0, v0, u1, v1, 2 * fh, wall, 4);
+    // antena
+    x.strokeStyle = '#555'; x.lineWidth = 1.4;
+    x.beginPath(); x.moveTo(...P(0.25, 0.25, 2 * fh)); x.lineTo(...P(0.25, 0.25, 2 * fh + 32)); x.stroke();
+    flag(x, 0.86, 0.12, 0, '#2a8a3a');
+    // viatura
+    box(x, 0.76, 0.42, 0.86, 0.76, 2, 9, '#f0f0f0');
+    box(x, 0.77, 0.5, 0.85, 0.66, 9, 13, '#2c3640', { topCol: '#f0f0f0' });
+    faceRect(x, 'R', 0.86, 0.44, 0.74, 4, 6.5, '#2e4a7a');
+    box(x, 0.79, 0.56, 0.83, 0.6, 13, 15, '#d83a3a');
+  });
+}
+
+function praca(variant) {
+  return building(1600 + variant, x => {
+    const r = mulberry32(1600 + variant);
+    poly(x, quad(0.02, 0.02, 0.98, 0.98), '#7fae4e', 'rgba(0,0,0,.12)');
+    // caminhos em cruz
+    poly(x, quad(0.42, 0.02, 0.58, 0.98), '#d8cca8');
+    poly(x, quad(0.02, 0.42, 0.98, 0.58), '#d8cca8');
+    if (variant === 0) {
+      // chafariz
+      const [cx, cy] = P(0.5, 0.5);
+      ellipse(x, cx, cy, 20, 10, '#b8b0a0');
+      ellipse(x, cx, cy - 2, 16, 8, '#4a8ab0');
+      ellipse(x, cx, cy - 2, 9, 4.5, '#7ab8d8');
+      x.fillStyle = '#c8c0b0'; x.fillRect(cx - 2, cy - 14, 4, 12);
+      ellipse(x, cx, cy - 14, 5, 2.5, '#d8d0c0');
+      x.strokeStyle = 'rgba(220,240,255,.8)'; x.lineWidth = 1;
+      for (const s of [-1, 1]) { x.beginPath(); x.moveTo(cx, cy - 16); x.quadraticCurveTo(cx + 6 * s, cy - 22, cx + 9 * s, cy - 4); x.stroke(); }
+    } else if (variant === 1) {
+      // parquinho
+      const [cx, cy] = P(0.72, 0.28);
+      poly(x, quad(0.62, 0.12, 0.88, 0.38), '#d8b878');
+      x.strokeStyle = '#c84a3a'; x.lineWidth = 2;
+      x.beginPath(); x.moveTo(cx - 10, cy + 2); x.lineTo(cx - 6, cy - 16); x.lineTo(cx - 2, cy + 2); x.moveTo(cx + 2, cy + 4); x.lineTo(cx + 6, cy - 14); x.lineTo(cx + 10, cy + 4); x.moveTo(cx - 6, cy - 16); x.lineTo(cx + 6, cy - 14); x.stroke();
+      x.strokeStyle = '#555'; x.lineWidth = 1;
+      x.beginPath(); x.moveTo(cx - 2, cy - 15); x.lineTo(cx - 2, cy - 4); x.moveTo(cx + 2, cy - 15); x.lineTo(cx + 2, cy - 4); x.stroke();
+      x.fillStyle = '#3a6ab0'; x.fillRect(cx - 4, cy - 4, 8, 2);
+      const [sx, sy] = P(0.3, 0.72);
+      poly(x, [[sx - 10, sy + 4], [sx + 8, sy - 8], [sx + 8, sy - 4], [sx - 10, sy + 8]], '#e8b830', 'rgba(0,0,0,.4)');
+    } else {
+      // canteiros de flores
+      for (const [u, v] of [[0.22, 0.22], [0.78, 0.78], [0.22, 0.78], [0.78, 0.22]]) {
+        const [cx, cy] = P(u, v);
+        ellipse(x, cx, cy, 13, 6.5, '#6a4a2e');
+        for (let k = 0; k < 9; k++) circle(x, cx + (r() - 0.5) * 18, cy + (r() - 0.5) * 8 - 1, 1.8, pick(r, ['#e8d84a', '#e07aa8', '#f2f0ea', '#d84a3a', '#a86ad8']));
+      }
+    }
+    // bancos e árvores
+    for (const [u, v] of [[0.32, 0.47], [0.68, 0.53]]) box(x, u - 0.06, v - 0.02, u + 0.06, v + 0.02, 2, 5, '#8a5a32');
+    const trees = variant === 2 ? [[0.5, 0.15]] : [[0.18, 0.2], [0.82, 0.82], [0.2, 0.84]];
+    for (const [u, v] of trees) smallTree(x, r, u, v);
+  });
+}
+export const PARK_VARIANTS = 3;
+
 // --- Serviços ---
 function chimneyStriped(x, u, v, z, h) {
   const bands = 6;
@@ -830,25 +962,53 @@ function caixaDaguaServico() {
 }
 
 // Ícone flutuante de serviço faltando (âncora na ponta de baixo)
+const BADGE_COLOR = { power: '#f2c230', water: '#3d9be0', school: '#3fae5a', health: '#e04848', police: '#2e4a8a' };
 function badge(kind) {
   return mk(40, 48, 20, 46, x => {
-    const col = kind === 'power' ? '#f2c230' : '#3d9be0';
     ellipse(x, 0, -1, 7, 2.5, 'rgba(0,0,0,.3)');
     x.beginPath();
     x.moveTo(0, -4); x.lineTo(-6, -14); x.lineTo(6, -14); x.closePath();
     x.fillStyle = '#fff'; x.fill();
     circle(x, 0, -27, 15, '#fff');
-    circle(x, 0, -27, 12.5, col);
+    circle(x, 0, -27, 12.5, BADGE_COLOR[kind]);
     x.fillStyle = '#fff';
     if (kind === 'power') {
       poly(x, [[2, -37], [-6, -25], [-1, -25], [-3, -16], [6, -29], [1, -29]], '#fff');
-    } else {
+    } else if (kind === 'water') {
       x.beginPath();
       x.moveTo(0, -38); x.bezierCurveTo(4, -32, 7, -28, 7, -24); x.arc(0, -24, 7, 0, Math.PI); x.bezierCurveTo(-7, -28, -4, -32, 0, -38);
+      x.fill();
+    } else if (kind === 'school') {
+      // capelo de formatura
+      poly(x, [[0, -36], [10, -31], [0, -26], [-10, -31]], '#fff');
+      x.fillRect(-5, -29, 10, 6);
+      x.fillRect(8, -31, 1.5, 8);
+    } else if (kind === 'health') {
+      x.fillRect(-8, -30, 16, 6); x.fillRect(-3, -35, 6, 16);
+    } else {
+      // escudo com estrela
+      x.beginPath(); x.moveTo(0, -37); x.lineTo(8, -34); x.quadraticCurveTo(8, -22, 0, -17); x.quadraticCurveTo(-8, -22, -8, -34); x.closePath(); x.fill();
+      x.fillStyle = BADGE_COLOR.police;
+      x.beginPath();
+      for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? 2 : 4.5; x.lineTo(Math.cos(a) * rr, -28 + Math.sin(a) * rr); }
       x.fill();
     }
     x.strokeStyle = 'rgba(0,0,0,.35)'; x.lineWidth = 1;
     x.beginPath(); x.arc(0, -27, 15, 0, Math.PI * 2); x.stroke();
+  });
+}
+
+// Luzes noturnas: poça de luz de poste e farol de carro (desenhadas em branco
+// quente; a cena usa mistura aditiva)
+function glow(w, h, col) {
+  return mk(w, h, w / 2, h / 2, x => {
+    x.save(); x.scale(1, h / w);
+    const g = x.createRadialGradient(0, 0, 0, 0, 0, w / 2);
+    g.addColorStop(0, col.replace('A', '.55'));
+    g.addColorStop(0.5, col.replace('A', '.22'));
+    g.addColorStop(1, col.replace('A', '0'));
+    x.fillStyle = g; x.beginPath(); x.arc(0, 0, w / 2, 0, Math.PI * 2); x.fill();
+    x.restore();
   });
 }
 
@@ -953,8 +1113,13 @@ export function allSprites() {
   list.svc1 = usina;
   list.svc2 = caixaDaguaServico;
   list.smoke = smokePuff;
-  list.badgePower = () => badge('power');
-  list.badgeWater = () => badge('water');
+  for (const k of ['power', 'water', 'school', 'health', 'police']) list['badge_' + k] = () => badge(k);
+  list.svc3 = escola;
+  list.svc4 = postoSaude;
+  list.svc5 = delegacia;
+  for (let v = 0; v < PARK_VARIANTS; v++) list['svc6_' + v] = () => praca(v);
+  list.lampGlow = () => glow(150, 75, 'rgba(255,214,140,A)');
+  list.headGlow = () => glow(56, 28, 'rgba(255,240,200,A)');
   CAR_COLORS.forEach((col, k) => { for (let d = 0; d < 4; d++) list[`car${k}_${d}`] = () => vehicle(col, d); });
   for (let d = 0; d < 4; d++) list['bus_' + d] = () => vehicle('#d9a92a', d, true);
   for (let k = 0; k < PED_VARIANTS; k++) for (let f = 0; f < 2; f++) list[`ped${k}_${f}`] = () => person(k, f);
