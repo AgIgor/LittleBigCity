@@ -140,6 +140,7 @@ async function start() {
     game.net.update(dt);
     game.scene.sync();
     game.traffic.update(dt);
+    game.scene.updateSmoke(dt, game.speed > 0);
     game.scene.updateCamera();
     if ((hudT += dt) > 0.15) { hudT = 0; game.ui.update(); }
   });

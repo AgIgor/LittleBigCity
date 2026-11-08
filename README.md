@@ -19,14 +19,16 @@ Depois de mudar o código, use **Ctrl+F5** para o navegador não usar a versão 
 | Mover o mapa | botão direito ou do meio, ou arrastar no modo Inspecionar | dois dedos, ou um dedo no modo Inspecionar |
 | Zoom | roda do mouse | pinça |
 
-Teclado: `1`–`7` ferramentas, `WASD`/setas movem, `+`/`-` zoom, `espaço` pausa, `Esc` cancela.
+Teclado: `1`–`9` ferramentas, `WASD`/setas movem, `+`/`-` zoom, `espaço` pausa, `Esc` cancela.
 
 ## Como a cidade cresce
 
 - Zonas só crescem a até 2 tiles de uma rua.
 - **R** (residencial) traz moradores, **C** (comercial) e **I** (industrial) dão empregos. As barras R/C/I no topo mostram a demanda.
 - Prédios sobem de nível (casa → sobrado → prédio) quando a cidade passa de 120 e 600 habitantes.
-- Impostos entram todo fim de mês; as ruas custam manutenção.
+- Para subir de nível também precisam de serviços: **nível 2 exige energia** (usina, raio de 16 tiles) e **nível 3 exige energia e água** (caixa d'água, raio de 12 tiles). Os alertas no topo mostram quantos prédios estão sem cada serviço.
+- Rua sobre a água vira **ponte** (mais cara para construir e manter).
+- Impostos entram todo fim de mês; ruas, pontes e serviços custam manutenção. O saldo do último mês aparece no topo.
 - O jogo salva sozinho no navegador a cada mês.
 - Carros, ônibus e pedestres circulam pelas ruas conforme a população e os empregos. Os carros fazem fila na mesma faixa e todos param quando o jogo pausa.
 

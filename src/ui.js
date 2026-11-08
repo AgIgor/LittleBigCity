@@ -2,6 +2,7 @@
 import { TOOLS, fmt } from './actions.js';
 import {
   N, MONTHS, DAYS_PER_MONTH, TERRAIN_NAME, OBJ_NAME, ZONE_NAME, RESIDENTS, JOBS_C, JOBS_I, ZR, ZC, ROAD_REACH, COST,
+  SVC_NAME, SVC_RADIUS, SVC_UPKEEP, WATER,
 } from './config.js';
 
 const ICONS = {
@@ -12,16 +13,20 @@ const ICONS = {
   zoneC: '<path d="M4 9h16l-1-4H5z"/><path d="M5 9v11h14V9"/><path d="M9 20v-6h6v6"/>',
   zoneI: '<path d="M3 20V10l5 3V10l5 3V5h3v15z"/><path d="M3 20h18"/>',
   demolish: '<path d="M4 20h16"/><path d="M6 20V9h8v11"/><path d="m15 4 5 5M20 4l-5 5"/>',
+  power: '<path d="M13 3 6 13h5l-1 8 7-11h-5z"/>',
+  water: '<path d="M12 3c3 4.5 6 7.6 6 11a6 6 0 0 1-12 0c0-3.4 3-6.5 6-11z"/>',
 };
-const TOOL_ORDER = ['inspect', 'clear', 'road', 'zoneR', 'zoneC', 'zoneI', 'demolish'];
+const TOOL_ORDER = ['inspect', 'clear', 'road', 'zoneR', 'zoneC', 'zoneI', 'power', 'water', 'demolish'];
 const TOOL_COST = {
   inspect: 'Clique num tile para ver detalhes. Arraste para mover o mapa.',
   clear: `Remove mata e pedras. Árvore R$ ${COST.clear[1]}, pedra R$ ${COST.clear[3]}.`,
-  road: `R$ ${COST.road} por tile. Arraste para traçar.`,
+  road: `R$ ${COST.road} por tile. Sobre a água vira ponte (R$ ${COST.bridge}).`,
   zoneR: `Casas aparecem sozinhas perto de ruas. R$ ${COST.zone}/tile.`,
   zoneC: `Comércio precisa de moradores por perto. R$ ${COST.zone}/tile.`,
   zoneI: `Indústria gera empregos. R$ ${COST.zone}/tile.`,
-  demolish: 'Remove ruas e prédios. Num lote vazio, tira a zona.',
+  power: `Energia num raio de ${SVC_RADIUS[1]} tiles. Prédios precisam dela para passar do nível 1. R$ ${fmt(COST.power)} + R$ ${SVC_UPKEEP[1]}/mês.`,
+  water: `Água num raio de ${SVC_RADIUS[2]} tiles. Prédios precisam dela para chegar ao nível 3. R$ ${fmt(COST.water)} + R$ ${SVC_UPKEEP[2]}/mês.`,
+  demolish: 'Remove ruas, prédios e serviços. Num lote vazio, tira a zona.',
 };
 
 const $ = s => document.querySelector(s);
@@ -125,6 +130,12 @@ export class UI {
       el.classList.toggle('neg', v < 0);
     }
     if (this.infoTile != null) this.renderInfo();
+    const alerts = [];
+    if (s.buildings >= 6 && s.noPower) alerts.push(`<span class="pw">⚡ ${s.noPower} sem energia</span>`);
+    if (s.noWater) alerts.push(`<span class="wt">💧 ${s.noWater} sem água</span>`);
+    const html = alerts.join('');
+    if (html !== this.alertHtml) { this.alertHtml = html; $('#alerts').innerHTML = html; }
+    $('#budget').textContent = s.lastIncome || s.lastCost ? `${s.lastIncome - s.lastCost >= 0 ? '+' : '−'} R$ ${fmt(Math.abs(s.lastIncome - s.lastCost))}/mês` : '';
   }
 
   toast(msg, bad) {
@@ -154,7 +165,8 @@ export class UI {
     const w = this.game.world, i = this.infoTile, x = i % N, y = (i / N) | 0;
     const rows = [];
     let title = TERRAIN_NAME[w.terrain[i]];
-    if (w.road[i]) title = 'Rua';
+    if (w.svc[i]) title = SVC_NAME[w.svc[i]];
+    else if (w.road[i]) title = w.terrain[i] === WATER ? 'Ponte' : 'Rua';
     else if (w.cons[i]) title = 'Obra';
     else if (w.bld[i]) title = ['', ['', 'Casa', 'Sobrado', 'Prédio residencial'], ['', 'Venda', 'Loja', 'Escritórios'], ['', 'Galpão', 'Fábrica', 'Indústria']][w.zone[i]][w.bld[i]];
     else if (w.obj[i]) title = OBJ_NAME[w.obj[i]];
@@ -165,6 +177,19 @@ export class UI {
       rows.push(z === ZR ? ['Moradores', RESIDENTS[lv]] : ['Empregos', (z === ZC ? JOBS_C : JOBS_I)[lv]]);
     }
     if (w.cons[i]) rows.push(['Fica pronta em', w.cons[i] + ' dias']);
+    if (w.svc[i]) {
+      rows.push(['Alcance', SVC_RADIUS[w.svc[i]] + ' tiles']);
+      rows.push(['Manutenção', `R$ ${SVC_UPKEEP[w.svc[i]]}/mês`]);
+    }
+    if (w.zone[i]) {
+      rows.push(['Energia', w.power[i] ? 'Sim' : '<em class="no">Não</em>']);
+      rows.push(['Água', w.water[i] ? 'Sim' : '<em class="no">Não</em>']);
+      const lv = w.bld[i];
+      if (lv && lv < 3) {
+        const need = !w.power[i] ? 'Precisa de energia' : lv === 2 && !w.water[i] ? 'Precisa de água' : 'Pode crescer';
+        rows.push(['Próximo nível', need]);
+      }
+    }
     if (w.zone[i] && !w.road[i]) rows.push(['Acesso à rua', w.roadDist[i] <= ROAD_REACH ? 'Sim' : 'Não, precisa de rua a até 2 tiles']);
     rows.push(['Posição', `${x}, ${y}`]);
     $('#infoTitle').textContent = title;

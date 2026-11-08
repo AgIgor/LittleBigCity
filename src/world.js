@@ -1,10 +1,10 @@
 import {
   N, WATER, SAND, GRASS, DIRT, NONE, TREE, BUSH, ROCK,
-  START_MONEY, ROAD_REACH, RESIDENTS, JOBS_C, JOBS_I, ZR, ZC, ZI,
+  START_MONEY, ROAD_REACH, RESIDENTS, JOBS_C, JOBS_I, ZR, ZC, ZI, SVC_RADIUS,
 } from './config.js';
 import { makeNoise, hash2, mulberry32 } from './rng.js';
 
-const LAYERS = ['terrain', 'obj', 'ov', 'road', 'zone', 'bld', 'bvar', 'cons', 'shade'];
+const LAYERS = ['terrain', 'obj', 'ov', 'road', 'zone', 'bld', 'bvar', 'cons', 'shade', 'svc'];
 
 export class World {
   constructor(seed) {
@@ -12,11 +12,13 @@ export class World {
     this.seed = seed >>> 0;
     for (const k of LAYERS) this[k] = new Uint8Array(N * N);
     this.roadDist = new Uint8Array(N * N);
+    this.power = new Uint8Array(N * N);   // cobertura de energia (derivada de svc)
+    this.water = new Uint8Array(N * N);   // cobertura de água
     this.money = START_MONEY;
     this.day = 0;
     this.demand = { r: 1, c: 0, i: 0.3 };
     this.rngState = (this.seed ^ 0x9e3779b9) >>> 0;
-    this.stats = { pop: 0, jobsC: 0, jobsI: 0, roads: 0, buildings: 0, lastIncome: 0, lastCost: 0 };
+    this.stats = { pop: 0, jobsC: 0, jobsI: 0, roads: 0, bridges: 0, buildings: 0, noPower: 0, noWater: 0, services: [0, 0, 0], lastIncome: 0, lastCost: 0 };
     this.dirty = new Set();     // tiles que o desenho precisa atualizar
     this.changed = new Set();   // tiles que o anfitrião precisa enviar aos outros jogadores
   }
@@ -56,7 +58,23 @@ export class World {
       } else if (t === SAND && h < 0.06) this.obj[i] = BUSH;
     }
     this.recomputeRoadDist();
+    this.recomputeServices();
     this.recomputeStats();
+  }
+
+  // Marca os tiles dentro do raio de cada usina / caixa d'água
+  recomputeServices() {
+    this.power.fill(0); this.water.fill(0);
+    for (let i = 0; i < N * N; i++) {
+      const k = this.svc[i];
+      if (!k) continue;
+      const out = k === 1 ? this.power : this.water, r = SVC_RADIUS[k], x0 = i % N, y0 = (i / N) | 0;
+      for (let y = Math.max(0, y0 - r); y <= Math.min(N - 1, y0 + r); y++) {
+        for (let x = Math.max(0, x0 - r); x <= Math.min(N - 1, x0 + r); x++) {
+          if ((x - x0) ** 2 + (y - y0) ** 2 <= r * r) out[y * N + x] = 1;
+        }
+      }
+    }
   }
 
   neighbors4(i) {
@@ -113,29 +131,34 @@ export class World {
 
   // Estado de um tile para enviar pela rede
   tileState(i) {
-    return [i, this.terrain[i], this.obj[i], this.road[i], this.zone[i], this.bld[i], this.bvar[i], this.cons[i]];
+    return [i, this.terrain[i], this.obj[i], this.road[i], this.zone[i], this.bld[i], this.bvar[i], this.cons[i], this.svc[i]];
   }
-  setTileState([i, t, o, r, z, b, bv, c]) {
-    const roadChanged = this.road[i] !== r;
+  // Devolve o que mudou de estrutural (ruas, serviços) para o chamador recalcular
+  setTileState([i, t, o, r, z, b, bv, c, sv = 0]) {
+    const changed = { road: this.road[i] !== r, svc: this.svc[i] !== sv };
     this.terrain[i] = t; this.obj[i] = o; this.road[i] = r; this.zone[i] = z;
-    this.bld[i] = b; this.bvar[i] = bv; this.cons[i] = c;
+    this.bld[i] = b; this.bvar[i] = bv; this.cons[i] = c; this.svc[i] = sv;
     this.markDirty(i);
-    return roadChanged;
+    return changed;
   }
 
   recomputeStats() {
-    let pop = 0, jc = 0, ji = 0, roads = 0, b = 0;
+    let pop = 0, jc = 0, ji = 0, roads = 0, bridges = 0, b = 0, noPower = 0, noWater = 0;
+    const services = [0, 0, 0];
     for (let i = 0; i < N * N; i++) {
-      if (this.road[i]) roads++;
+      if (this.road[i]) { if (this.terrain[i] === WATER) bridges++; else roads++; }
+      if (this.svc[i]) services[this.svc[i]]++;
       const lv = this.bld[i];
       if (!lv) continue;
       b++;
+      if (!this.power[i]) noPower++;
+      if (lv >= 2 && !this.water[i]) noWater++;
       const z = this.zone[i];
       if (z === ZR) pop += RESIDENTS[lv];
       else if (z === ZC) jc += JOBS_C[lv];
       else if (z === ZI) ji += JOBS_I[lv];
     }
-    Object.assign(this.stats, { pop, jobsC: jc, jobsI: ji, roads, buildings: b });
+    Object.assign(this.stats, { pop, jobsC: jc, jobsI: ji, roads, bridges, buildings: b, noPower, noWater, services });
   }
 
   // ---- salvar / carregar ----
@@ -148,10 +171,11 @@ export class World {
   static deserialize(data) {
     if (!data || data.v !== 1) return null;
     const w = new World(data.seed);
-    for (const k of LAYERS) w[k].set(fromB64(data[k]));
+    for (const k of LAYERS) if (data[k]) w[k].set(fromB64(data[k]));   // saves antigos não têm 'svc'
     Object.assign(w, { money: data.money, day: data.day, demand: data.demand, rngState: data.rng });
     Object.assign(w.stats, data.stats);
     w.recomputeRoadDist();
+    w.recomputeServices();
     w.recomputeStats();
     return w;
   }

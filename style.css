@@ -91,6 +91,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .tool[data-tool="zoneC"] svg { color: var(--c); }
 .tool[data-tool="zoneI"] svg { color: var(--i); }
 .tool[data-tool="demolish"] svg { color: var(--bad); }
+.tool[data-tool="power"] svg { color: #ffd84a; }
+.tool[data-tool="water"] svg { color: #5ab8ff; }
 
 /* ---------- painel de informação ---------- */
 #info {
@@ -165,3 +167,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #mpPlayers li small { margin-left: auto; color: var(--muted); }
 #mpLeave { width: 100%; }
 @media (max-width: 720px) { #mpStatus { display: none; } }
+
+#alerts { display: flex; gap: 6px; flex-wrap: wrap; }
+#alerts span { font-size: 12px; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
+#alerts .pw { background: rgba(255,216,74,.15); color: #ffe48a; border: 1px solid rgba(255,216,74,.4); }
+#alerts .wt { background: rgba(90,184,255,.15); color: #a8d8ff; border: 1px solid rgba(90,184,255,.4); }
+#infoBody em.no { font-style: normal; color: #ffb4a6; }

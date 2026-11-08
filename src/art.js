@@ -237,48 +237,87 @@ function waterTile(mask) {
 // ======================================================================
 // Ruas: bits 1 = rua em y-1, 2 = x+1, 4 = y+1, 8 = x-1
 // ======================================================================
+function paintRoad(x, mask) {
+  onGround(x, g => {
+    const e = 0.03;
+    const arms = (a, b, col) => {
+      g.fillStyle = col;
+      g.fillRect(a, a, b - a, b - a);
+      if (mask & 1) g.fillRect(a, -e, b - a, 0.5 + e);
+      if (mask & 2) g.fillRect(0.5, a, 0.5 + e, b - a);
+      if (mask & 4) g.fillRect(a, 0.5, b - a, 0.5 + e);
+      if (mask & 8) g.fillRect(-e, a, 0.5 + e, b - a);
+    };
+    arms(0.1, 0.9, '#a39d91');           // calçada
+    arms(0.13, 0.87, '#8a857a');         // meio-fio
+    arms(0.17, 0.83, '#57554f');         // asfalto
+    // textura do asfalto
+    const r = mulberry32(40 + mask);
+    for (let k = 0; k < 90; k++) {
+      g.fillStyle = r() < 0.5 ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.08)';
+      g.fillRect(0.17 + r() * 0.66, 0.17 + r() * 0.66, 0.015, 0.015);
+    }
+    // faixa central
+    const n = [1, 2, 4, 8].filter(b => mask & b).length;
+    if (n && n <= 2) {
+      g.fillStyle = '#d8b84a';
+      const dash = (ax, ay, bx, by) => {
+        for (let st = 0; st < 3; st++) {
+          const t0 = st / 3 + 0.04, t1 = t0 + 0.16;
+          const x0 = ax + (bx - ax) * t0, y0 = ay + (by - ay) * t0, x1 = ax + (bx - ax) * t1, y1 = ay + (by - ay) * t1;
+          g.fillRect(Math.min(x0, x1) - 0.012, Math.min(y0, y1) - 0.012, Math.abs(x1 - x0) + 0.024, Math.abs(y1 - y0) + 0.024);
+        }
+      };
+      if (mask & 1) dash(0.5, 0.5, 0.5, 0);
+      if (mask & 2) dash(0.5, 0.5, 1, 0.5);
+      if (mask & 4) dash(0.5, 0.5, 0.5, 1);
+      if (mask & 8) dash(0.5, 0.5, 0, 0.5);
+    }
+  });
+}
+
 function roadTile(mask) {
   return mk(GROUND_W, GROUND_H, HW + 2, 2, x => {
     x.save();
     clipDiamond(x, 0.018);
-    onGround(x, g => {
-      const e = 0.03;
-      const arms = (a, b, col) => {
-        g.fillStyle = col;
-        g.fillRect(a, a, b - a, b - a);
-        if (mask & 1) g.fillRect(a, -e, b - a, 0.5 + e);
-        if (mask & 2) g.fillRect(0.5, a, 0.5 + e, b - a);
-        if (mask & 4) g.fillRect(a, 0.5, b - a, 0.5 + e);
-        if (mask & 8) g.fillRect(-e, a, 0.5 + e, b - a);
-      };
-      arms(0.1, 0.9, '#a39d91');           // calçada
-      arms(0.13, 0.87, '#8a857a');         // meio-fio
-      arms(0.17, 0.83, '#57554f');         // asfalto
-      // textura do asfalto
-      const r = mulberry32(40 + mask);
-      for (let k = 0; k < 90; k++) {
-        g.fillStyle = r() < 0.5 ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.08)';
-        g.fillRect(0.17 + r() * 0.66, 0.17 + r() * 0.66, 0.015, 0.015);
-      }
-      // faixa central
-      const n = [1, 2, 4, 8].filter(b => mask & b).length;
-      if (n && n <= 2) {
-        g.fillStyle = '#d8b84a';
-        const dash = (ax, ay, bx, by) => {
-          const steps = 3;
-          for (let s = 0; s < steps; s++) {
-            const t0 = s / steps + 0.04, t1 = t0 + 0.16;
-            const x0 = ax + (bx - ax) * t0, y0 = ay + (by - ay) * t0, x1 = ax + (bx - ax) * t1, y1 = ay + (by - ay) * t1;
-            g.fillRect(Math.min(x0, x1) - 0.012, Math.min(y0, y1) - 0.012, Math.abs(x1 - x0) + 0.024, Math.abs(y1 - y0) + 0.024);
-          }
-        };
-        if (mask & 1) dash(0.5, 0.5, 0.5, 0);
-        if (mask & 2) dash(0.5, 0.5, 1, 0.5);
-        if (mask & 4) dash(0.5, 0.5, 0.5, 1);
-        if (mask & 8) dash(0.5, 0.5, 0, 0.5);
-      }
-    });
+    paintRoad(x, mask);
     x.restore();
+  });
+}
+
+// Ponte: tabuleiro de concreto um pouco acima da água, com guarda-corpo nos
+// lados que não continuam e pilar no meio
+function bridgeTile(mask) {
+  return mk(GROUND_W, GROUND_H + 22, HW + 2, 2, x => {
+    const D = 8, conc = '#9a958a';
+    const u0 = mask & 8 ? 0 : 0.06, u1 = mask & 2 ? 1 : 0.94, v0 = mask & 1 ? 0 : 0.06, v1 = mask & 4 ? 1 : 0.94;
+    poly(x, quad(u0 + 0.06, v0 + 0.12, u1 + 0.06, v1 + 0.12), 'rgba(10,30,40,.35)');
+    box(x, 0.4, 0.4, 0.6, 0.6, -20, -D, '#8a857c', { top: false });
+    if (!(mask & 2)) poly(x, [P(u1, v0, 0), P(u1, v1, 0), P(u1, v1, -D), P(u1, v0, -D)], shade(conc, 0.82), EDGE);
+    if (!(mask & 4)) poly(x, [P(u0, v1, 0), P(u1, v1, 0), P(u1, v1, -D), P(u0, v1, -D)], shade(conc, 0.66), EDGE);
+    poly(x, quad(u0, v0, u1, v1), conc);
+    x.save();
+    x.beginPath();
+    const d = quad(u0, v0, u1, v1);
+    x.moveTo(...d[0]); for (const q of d.slice(1)) x.lineTo(...q);
+    x.closePath(); x.clip();
+    paintRoad(x, mask);
+    x.restore();
+    // guarda-corpo
+    const rail = (a, b) => {
+      x.strokeStyle = '#d8d4cc'; x.lineWidth = 1.6;
+      x.beginPath(); x.moveTo(...P(a[0], a[1], 6)); x.lineTo(...P(b[0], b[1], 6)); x.stroke();
+      x.strokeStyle = 'rgba(60,55,50,.8)'; x.lineWidth = 1;
+      for (let t = 0; t <= 1.001; t += 0.2) {
+        const pu = a[0] + (b[0] - a[0]) * t, pv = a[1] + (b[1] - a[1]) * t;
+        x.beginPath(); x.moveTo(...P(pu, pv, 0)); x.lineTo(...P(pu, pv, 6)); x.stroke();
+      }
+    };
+    const k = 0.04;
+    if (!(mask & 1)) rail([u0, v0 + k], [u1, v0 + k]);
+    if (!(mask & 8)) rail([u0 + k, v0], [u0 + k, v1]);
+    if (!(mask & 2)) rail([u1 - k, v0], [u1 - k, v1]);
+    if (!(mask & 4)) rail([u0, v1 - k], [u1, v1 - k]);
   });
 }
 
@@ -721,6 +760,93 @@ function obra(variant) {
   });
 }
 
+// --- Serviços ---
+function chimneyStriped(x, u, v, z, h) {
+  const bands = 6;
+  for (let k = 0; k < bands; k++) {
+    const z0 = z + (h * k) / bands, z1 = z + (h * (k + 1)) / bands;
+    box(x, u - 0.045, v - 0.045, u + 0.045, v + 0.045, z0, z1, k % 2 ? '#e8e2d6' : '#c0392b', { top: k === bands - 1 });
+  }
+}
+
+function usina() {
+  return building(1100, x => {
+    lot(x, '#9a968c');
+    const u0 = 0.08, v0 = 0.14, u1 = 0.56, v1 = 0.86, h = 38;
+    groundShadow(x, u0, v0, u1, v1, h + 60);
+    box(x, u0, v0, u1, v1, 0, h, '#8d8a84', { top: false });
+    windows(x, 'L', v1, u0, u1, h * 0.45, 1, h * 0.5, 3, '#2f3a44');
+    windows(x, 'R', u1, v0, v1, h * 0.45, 1, h * 0.5, 4, '#2f3a44');
+    faceRect(x, 'L', v1, 0.2, 0.36, 0, 24, '#5a564e', 'rgba(0,0,0,.45)');
+    flatRoof(x, u0, v0, u1, v1, h, '#8d8a84', 4);
+    // transformadores e postes no pátio
+    for (const v of [0.24, 0.5, 0.76]) {
+      box(x, 0.68, v - 0.07, 0.8, v + 0.07, 0, 14, '#7a8288');
+      box(x, 0.7, v - 0.05, 0.78, v + 0.05, 14, 18, '#5a6268');
+    }
+    x.strokeStyle = '#4a4440'; x.lineWidth = 1.6;
+    for (const v of [0.18, 0.82]) { x.beginPath(); x.moveTo(...P(0.9, v, 0)); x.lineTo(...P(0.9, v, 46)); x.stroke(); }
+    x.lineWidth = 1;
+    x.beginPath(); x.moveTo(...P(0.9, 0.12, 44)); x.lineTo(...P(0.9, 0.88, 44)); x.stroke();
+    x.strokeStyle = 'rgba(40,40,40,.6)';
+    for (const v of [0.24, 0.5, 0.76]) { x.beginPath(); x.moveTo(...P(0.74, v, 18)); x.quadraticCurveTo(...P(0.84, v, 26), ...P(0.9, v, 44)); x.stroke(); }
+    // cerca
+    x.strokeStyle = 'rgba(200,200,190,.8)';
+    x.beginPath(); x.moveTo(...P(0.62, 0.96, 0)); x.lineTo(...P(0.96, 0.96, 0)); x.lineTo(...P(0.96, 0.04, 0)); x.stroke();
+    chimneyStriped(x, 0.26, 0.3, h, 84);
+    // raio no letreiro
+    const [cx, cy] = P(0.32, v1, 30);
+    poly(x, [[cx + 2, cy - 7], [cx - 3, cy + 1], [cx, cy + 1], [cx - 2, cy + 7], [cx + 4, cy - 1], [cx + 1, cy - 1]], '#f2c94c', 'rgba(0,0,0,.5)', 0.8);
+  });
+}
+
+function caixaDaguaServico() {
+  return building(1200, x => {
+    lot(x, '#86a052');
+    poly(x, quad(0.25, 0.25, 0.75, 0.75), '#b0aa9c');
+    box(x, 0.66, 0.66, 0.9, 0.9, 0, 14, '#d8d0c0');       // casa de bombas
+    gable(x, 0.66, 0.66, 0.9, 0.9, 14, 7, 'u', '#8c4636', '#d8d0c0', 0.02);
+    const legs = [[0.32, 0.32], [0.68, 0.32], [0.68, 0.68], [0.32, 0.68]], top = 74;
+    const [sx, sy] = P(0.5, 0.5);
+    ellipse(x, sx + 10, sy + 6, 30, 12, 'rgba(20,32,10,.25)');
+    x.strokeStyle = '#6a6660'; x.lineWidth = 3;
+    for (const [u, v] of legs) { x.beginPath(); x.moveTo(...P(u, v, 0)); x.lineTo(...P(0.5 + (u - 0.5) * 0.6, 0.5 + (v - 0.5) * 0.6, top)); x.stroke(); }
+    x.lineWidth = 1.2; x.strokeStyle = 'rgba(90,86,80,.9)';
+    for (const z of [22, 46]) {
+      const f = 1 - (z / top) * 0.4;
+      const pts = legs.map(([u, v]) => P(0.5 + (u - 0.5) * f, 0.5 + (v - 0.5) * f, z));
+      x.beginPath(); x.moveTo(...pts[0]); for (const q of pts.slice(1)) x.lineTo(...q); x.closePath(); x.stroke();
+    }
+    const [cx, cy] = P(0.5, 0.5, top), th = 30, rw = 22;
+    x.fillStyle = '#3d74b0'; x.fillRect(cx - rw, cy - th, rw * 2, th);
+    x.fillStyle = 'rgba(0,0,0,.2)'; x.fillRect(cx - rw, cy - th, rw * 0.6, th);
+    x.fillStyle = 'rgba(255,255,255,.18)'; x.fillRect(cx + rw * 0.35, cy - th, 5, th);
+    ellipse(x, cx, cy, rw, rw * 0.5, '#2f5a8a');
+    x.fillStyle = '#e8e4da'; x.fillRect(cx - rw, cy - th * 0.62, rw * 2, 5);
+    poly(x, [[cx - rw, cy - th], [cx, cy - th - 14], [cx + rw, cy - th]], '#5a8ac4', 'rgba(0,0,0,.3)');
+    ellipse(x, cx, cy - th, rw, rw * 0.5, '#6a9ad0');
+    poly(x, [[cx - rw, cy - th], [cx, cy - th - 14], [cx + rw, cy - th], [cx, cy - th + rw * 0.5]], '#5a8ac4', 'rgba(0,0,0,.3)');
+  });
+}
+
+function smokePuff() {
+  return mk(48, 48, 24, 24, x => {
+    const g = x.createRadialGradient(0, 0, 2, 0, 0, 22);
+    g.addColorStop(0, 'rgba(255,255,255,.9)');
+    g.addColorStop(0.55, 'rgba(255,255,255,.45)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = g;
+    x.beginPath(); x.arc(0, 0, 22, 0, Math.PI * 2); x.fill();
+  });
+}
+
+// Topo das chaminés, relativo à âncora do sprite (vértice de cima do tile)
+export const CHIMNEYS = {
+  b32: [P(0.24, 0.26, 104)],
+  b33: [P(0.55, 0.3, 126), P(0.75, 0.3, 112)],
+  svc1: [P(0.26, 0.3, 122)],
+};
+
 // Catálogo de prédios por zona e nível: zona -> nível -> [funções]
 export const BUILDINGS = {
   1: { 1: [0, 1, 2, 3].map(v => () => house(v)), 2: [0, 1, 2].map(v => () => sobrado(v)), 3: [0, 1, 2].map(v => () => predioRes(v)) },
@@ -792,6 +918,7 @@ export function allSprites() {
   for (let v = 0; v < 3; v++) list['dirt' + v] = () => dirtTile(30 + v);
   for (let m = 0; m < 16; m++) list['water' + m] = () => waterTile(m);
   for (let m = 0; m < 16; m++) list['road' + m] = () => roadTile(m);
+  for (let m = 0; m < 16; m++) list['bridge' + m] = () => bridgeTile(m);
   list.zone = () => overlayTile('zone');
   list.cursor = () => overlayTile('cursor');
   for (let v = 0; v < TREE_VARIANTS; v++) list['tree' + v] = () => treeTile(v);
@@ -800,6 +927,9 @@ export function allSprites() {
   for (const z in BUILDINGS) for (const lv in BUILDINGS[z]) BUILDINGS[z][lv].forEach((fn, k) => { list[`b${z}${lv}_${k}`] = fn; });
   list.obra0 = () => obra(0);
   list.obra1 = () => obra(1);
+  list.svc1 = usina;
+  list.svc2 = caixaDaguaServico;
+  list.smoke = smokePuff;
   CAR_COLORS.forEach((col, k) => { for (let d = 0; d < 4; d++) list[`car${k}_${d}`] = () => vehicle(col, d); });
   for (let d = 0; d < 4; d++) list['bus_' + d] = () => vehicle('#d9a92a', d, true);
   for (let k = 0; k < PED_VARIANTS; k++) for (let f = 0; f < 2; f++) list[`ped${k}_${f}`] = () => person(k, f);

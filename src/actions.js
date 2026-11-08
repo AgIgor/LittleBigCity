@@ -1,6 +1,6 @@
 // Todas as mudanças feitas pelo jogador passam por aqui como "ações" simples
 // ({tool, a, b}). Assim, no multiplayer, basta enviar a ação para os outros.
-import { N, WATER, GRASS, DIRT, NONE, COST, ZR, ZC, ZI } from './config.js';
+import { N, WATER, GRASS, DIRT, NONE, COST, ZR, ZC, ZI, SVC_POWER, SVC_WATER } from './config.js';
 
 export const TOOLS = {
   inspect: { name: 'Inspecionar', shape: 'point' },
@@ -9,6 +9,8 @@ export const TOOLS = {
   zoneR: { name: 'Residencial', shape: 'rect', zone: ZR },
   zoneC: { name: 'Comercial', shape: 'rect', zone: ZC },
   zoneI: { name: 'Industrial', shape: 'rect', zone: ZI },
+  power: { name: 'Usina', shape: 'point', svc: SVC_POWER },
+  water: { name: "Caixa d'água", shape: 'point', svc: SVC_WATER },
   demolish: { name: 'Demolir', shape: 'rect' },
 };
 
@@ -36,7 +38,7 @@ function tilesInShape(shape, a, b) {
 
 // Para cada tile: state 'ok' (será alterado), 'skip' (nada a fazer) ou 'bad' (proibido)
 function judge(w, tool, i) {
-  const t = w.terrain[i], o = w.obj[i], built = w.bld[i] || w.cons[i];
+  const t = w.terrain[i], o = w.obj[i], built = w.bld[i] || w.cons[i] || w.svc[i];
   const clearCost = o ? COST.clear[o] : 0;
   switch (tool) {
     case 'clear':
@@ -44,8 +46,8 @@ function judge(w, tool, i) {
       return ['ok', clearCost];
     case 'road':
       if (w.road[i]) return ['skip', 0];
-      if (t === WATER) return ['bad', 0, 'Não dá para fazer rua na água (pontes virão depois)'];
       if (built) return ['bad', 0, 'Há um prédio no caminho'];
+      if (t === WATER) return ['ok', COST.bridge];       // vira ponte
       return ['ok', COST.road + clearCost];
     case 'zoneR': case 'zoneC': case 'zoneI': {
       const z = TOOLS[tool].zone;
@@ -54,7 +56,12 @@ function judge(w, tool, i) {
       if (built) return ['bad', 0, 'Demolir o prédio antes de mudar a zona'];
       return ['ok', COST.zone + clearCost];
     }
+    case 'power': case 'water':
+      if (t === WATER || w.road[i]) return ['bad', 0, 'Precisa de terra firme fora da rua'];
+      if (built) return ['bad', 0, 'Já há uma construção aqui'];
+      return ['ok', COST[tool] + clearCost];
     case 'demolish':
+      if (w.svc[i]) return ['ok', COST.demolishSvc];
       if (w.road[i]) return ['ok', COST.demolishRoad];
       if (built) return ['ok', COST.demolishBld * Math.max(1, w.bld[i])];
       if (w.zone[i]) return ['ok', 0];
@@ -86,7 +93,7 @@ export function apply(w, action) {
   if (!todo.length) return { ok: false, msg: p.reason || 'Nada para fazer aqui' };
   if (p.cost > w.money) return { ok: false, msg: `Faltam R$ ${fmt(p.cost - w.money)}` };
 
-  let roadsChanged = false;
+  let roadsChanged = false, svcChanged = false;
   for (const { i } of todo) {
     const clearHere = () => {
       if (w.obj[i]) { w.obj[i] = NONE; if (w.terrain[i] === GRASS) w.terrain[i] = DIRT; }
@@ -95,8 +102,13 @@ export function apply(w, action) {
       case 'clear': clearHere(); break;
       case 'road': clearHere(); w.road[i] = 1; roadsChanged = true; break;
       case 'zoneR': case 'zoneC': case 'zoneI': clearHere(); w.zone[i] = TOOLS[tool].zone; break;
+      case 'power': case 'water':
+        clearHere(); w.zone[i] = 0; w.svc[i] = TOOLS[tool].svc; svcChanged = true;
+        if (w.terrain[i] === GRASS) w.terrain[i] = DIRT;
+        break;
       case 'demolish':
-        if (w.road[i]) { w.road[i] = 0; roadsChanged = true; }
+        if (w.svc[i]) { w.svc[i] = 0; svcChanged = true; }
+        else if (w.road[i]) { w.road[i] = 0; roadsChanged = true; }
         else if (w.bld[i] || w.cons[i]) { w.bld[i] = 0; w.cons[i] = 0; if (w.terrain[i] === GRASS) w.terrain[i] = DIRT; }
         else w.zone[i] = 0;
         break;
@@ -105,6 +117,7 @@ export function apply(w, action) {
   }
   w.money -= p.cost;
   if (roadsChanged) w.roadsChangedAt(todo.map(t => t.i));
+  if (svcChanged) w.recomputeServices();
   w.recomputeStats();
   return { ok: true, cost: p.cost, count: todo.length };
 }

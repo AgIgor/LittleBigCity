@@ -163,8 +163,14 @@ export class Net {
         const w = g.world;
         if (msg.tiles) {
           const roads = [];
-          for (const s of msg.tiles) if (w.setTileState(s)) roads.push(s[0]);
+          let svc = false;
+          for (const s of msg.tiles) {
+            const c = w.setTileState(s);
+            if (c.road) roads.push(s[0]);
+            if (c.svc) svc = true;
+          }
           if (roads.length) w.roadsChangedAt(roads);
+          if (svc) w.recomputeServices();
           w.recomputeStats();
           g.input?.refresh();
         }

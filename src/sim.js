@@ -1,6 +1,6 @@
 // Simulação diária da cidade: demanda, crescimento dos prédios e orçamento.
 // Determinística (usa o Rng salvo no mundo) para o anfitrião do multiplayer.
-import { N, GRASS, DIRT, ZR, ZC, ROAD_REACH, DAYS_PER_MONTH } from './config.js';
+import { N, GRASS, DIRT, ZR, ZC, ROAD_REACH, DAYS_PER_MONTH, TAX, ROAD_UPKEEP, BRIDGE_UPKEEP, SVC_UPKEEP } from './config.js';
 import { Rng } from './rng.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -52,7 +52,7 @@ export function tickDay(w) {
         w.bvar[i] = rng.int(256);
         w.markDirty(i);
       }
-    } else if (lv < 3 && dem > 0.2 && w.stats.pop >= LEVEL_POP[lv + 1] && rng.next() < 0.06 * dem) {
+    } else if (lv < 3 && dem > 0.2 && w.stats.pop >= LEVEL_POP[lv + 1] && hasServices(w, i, lv + 1) && rng.next() < 0.06 * dem) {
       w.cons[i] = 10 + rng.int(12);
       w.markDirty(i);
     }
@@ -72,8 +72,9 @@ export function tickDay(w) {
   w.day++;
   if (w.day % DAYS_PER_MONTH === 0) {
     const s = w.stats;
-    const income = Math.round(s.pop * 2 + s.jobsC * 3 + s.jobsI * 2.5);
-    const cost = Math.round(s.roads * 1.5);
+    const income = Math.round(s.pop * TAX.resident + s.jobsC * TAX.jobC + s.jobsI * TAX.jobI);
+    const cost = Math.round(s.roads * ROAD_UPKEEP + s.bridges * BRIDGE_UPKEEP +
+      s.services[1] * SVC_UPKEEP[1] + s.services[2] * SVC_UPKEEP[2]);
     w.money += income - cost;
     s.lastIncome = income; s.lastCost = cost;
     events.push({ type: 'month', income, cost });
@@ -81,6 +82,13 @@ export function tickDay(w) {
 
   w.rngState = rng.s;
   return events;
+}
+
+// Nível 2 precisa de energia; nível 3, de energia e água
+export function hasServices(w, i, level) {
+  if (level >= 2 && !w.power[i]) return false;
+  if (level >= 3 && !w.water[i]) return false;
+  return true;
 }
 
 export function demandTargets(w) { return targetDemand(w.stats); }

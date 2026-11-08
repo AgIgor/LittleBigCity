@@ -2,7 +2,7 @@
 // e a pré-visualização da ferramenta.
 import { Container, Sprite, Text } from '../lib/pixi.min.mjs';
 import { TW, TH, N, CHUNK, WATER, SAND, GRASS, DIRT, TREE, BUSH, ROCK, ZONE_COLOR, ROAD_REACH } from './config.js';
-import { TREE_VARIANTS, BUSH_VARIANTS, ROCK_VARIANTS, BUILDINGS } from './art.js';
+import { TREE_VARIANTS, BUSH_VARIANTS, ROCK_VARIANTS, BUILDINGS, CHIMNEYS } from './art.js';
 
 const HW = TW / 2, HH = TH / 2;
 const CN = Math.ceil(N / CHUNK);
@@ -59,6 +59,10 @@ export class Scene {
     this.preview = new Container();
     this.root.addChild(this.preview);
     this.previewPool = [];
+    this.smokeLayer = new Container();
+    this.root.addChild(this.smokeLayer);
+    this.puffs = [];
+    this.chimneys = new Map();     // tile -> posições (mundo) do topo das chaminés
     this.cursorLayer = new Container();
     this.root.addChild(this.cursorLayer);
     this.cursorMap = new Map();
@@ -101,7 +105,7 @@ export class Scene {
         s.position.set(px, py);
         this.roadChunks[this.chunkOf(x, y)].addChild(s);
       }
-      this.setTex(this.roadS[i], 'road' + w.maskOf(i, j => w.road[j]));
+      this.setTex(this.roadS[i], (t === WATER ? 'bridge' : 'road') + w.maskOf(i, j => w.road[j]));
     } else if (this.roadS[i]) { this.roadS[i].destroy(); this.roadS[i] = null; }
 
     // marcação de zona (só em lote vazio)
@@ -119,7 +123,8 @@ export class Scene {
 
     // objeto: obra, prédio ou vegetação
     let key = '';
-    if (w.cons[i]) key = 'obra' + (w.bld[i] ? 1 : 0);
+    if (w.svc[i]) key = 'svc' + w.svc[i];
+    else if (w.cons[i]) key = 'obra' + (w.bld[i] ? 1 : 0);
     else if (w.bld[i] && w.zone[i]) {
       const list = BUILDINGS[w.zone[i]][w.bld[i]];
       key = `b${w.zone[i]}${w.bld[i]}_${w.bvar[i] % list.length}`;
@@ -129,6 +134,9 @@ export class Scene {
 
     if (key !== this.objKey[i]) {
       this.objKey[i] = key;
+      const ch = CHIMNEYS[key.split('_')[0]];
+      if (ch) this.chimneys.set(i, ch.map(([cx, cy]) => [px + cx, py + cy]));
+      else this.chimneys.delete(i);
       if (!key) { this.objS[i]?.destroy(); this.objS[i] = null; }
       else {
         if (!this.objS[i]) {
@@ -149,6 +157,37 @@ export class Scene {
       for (const i of w.dirty) this.refreshTile(i);
       w.dirty.clear();
     }
+  }
+
+  // Fumaça: cada chaminé visível solta baforadas que sobem, crescem e somem
+  updateSmoke(dt, running) {
+    const tex = this.tex.smoke;
+    if (running) {
+      for (const [i, list] of this.chimneys) {
+        for (let k = 0; k < list.length; k++) {
+          const [cx, cy] = list[k];
+          if (!this.inView(cx, cy + 100)) continue;
+          if (Math.random() > dt * 2.6) continue;
+          if (this.puffs.length > 500) break;
+          const s = new Sprite(tex.texture);
+          s.anchor.set(0.5);
+          s.position.set(cx + (Math.random() - 0.5) * 3, cy);
+          s.tint = this.world.svc[i] ? 0xa8a49c : 0xcfcbc2;
+          this.smokeLayer.addChild(s);
+          this.puffs.push({ s, age: 0, life: 3 + Math.random() * 1.5, vx: 9 + Math.random() * 8, vy: -20 - Math.random() * 8 });
+        }
+      }
+    }
+    for (const p of this.puffs) {
+      p.age += dt;
+      const t = p.age / p.life;
+      p.s.x += p.vx * dt; p.s.y += p.vy * dt;
+      p.vy *= 1 - dt * 0.35;
+      p.s.scale.set(0.4 + t * 1.5);
+      p.s.alpha = Math.min(1, p.age * 3) * (1 - t) * 0.8;
+      if (t >= 1) { p.s.destroy(); p.dead = true; }
+    }
+    if (this.puffs.some(p => p.dead)) this.puffs = this.puffs.filter(p => !p.dead);
   }
 
   refreshAll() { for (let i = 0; i < N * N; i++) this.refreshTile(i); }
@@ -249,8 +288,8 @@ export class Scene {
       const { i, state } = tiles[k], [px, py] = tileToWorld(i % N, (i / N) | 0);
       s.visible = true;
       s.position.set(px, py);
-      s.tint = state === 'ok' ? 0x8cff96 : state === 'bad' ? 0xff5a4a : 0xffffff;
-      s.alpha = state === 'skip' ? 0.3 : 0.8;
+      s.tint = { ok: 0x8cff96, bad: 0xff5a4a, power: 0xffd84a, water: 0x5ab8ff }[state] ?? 0xffffff;
+      s.alpha = state === 'skip' ? 0.3 : state === 'power' || state === 'water' ? 0.38 : 0.8;
     }
   }
 }
